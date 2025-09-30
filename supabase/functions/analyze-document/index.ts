@@ -6,6 +6,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function for efficient base64 conversion without stack overflow
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192; // 8KB chunks to avoid stack overflow
+  let binary = '';
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode(...chunk);
+  }
+  
+  return btoa(binary);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -85,6 +99,17 @@ serve(async (req) => {
     const isPDF = document.file_type === 'application/pdf';
     const fileBuffer = await fileData.arrayBuffer();
     
+    // Validate file size (Gemini's limit is 20MB)
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    if (fileBuffer.byteLength > MAX_FILE_SIZE) {
+      console.error('File too large:', fileBuffer.byteLength, 'bytes');
+      await supabase
+        .from('documents')
+        .update({ status: 'error' })
+        .eq('id', documentId);
+      throw new Error(`Filen är för stor (${Math.round(fileBuffer.byteLength / 1024 / 1024)}MB). Max 20MB tillåtet.`);
+    }
+    
     // Calculate hash from buffer
     const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -95,8 +120,8 @@ serve(async (req) => {
     let base64Data = '';
     
     if (isPDF) {
-      base64Data = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-      console.log('PDF detected, using base64 encoding. Size:', fileBuffer.byteLength, 'Hash:', contentHash);
+      base64Data = arrayBufferToBase64(fileBuffer);
+      console.log('PDF detected, using chunked base64 encoding. Size:', fileBuffer.byteLength, 'Hash:', contentHash);
     } else {
       const decoder = new TextDecoder();
       fileContent = decoder.decode(fileBuffer);
