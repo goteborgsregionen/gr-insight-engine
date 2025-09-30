@@ -6,19 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function for efficient base64 conversion without stack overflow
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 8192; // 8KB chunks to avoid stack overflow
-  let binary = '';
-  
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    binary += String.fromCharCode(...chunk);
-  }
-  
-  return btoa(binary);
-}
+// Base64 helper removed - now using text-only processing for all files
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -115,18 +103,10 @@ serve(async (req) => {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Convert to base64 for PDFs, text for others
-    let fileContent = '';
-    let base64Data = '';
-    
-    if (isPDF) {
-      base64Data = arrayBufferToBase64(fileBuffer);
-      console.log('PDF detected, using chunked base64 encoding. Size:', fileBuffer.byteLength, 'Hash:', contentHash);
-    } else {
-      const decoder = new TextDecoder();
-      fileContent = decoder.decode(fileBuffer);
-      console.log('Text file detected. Content length:', fileContent.length, 'Hash:', contentHash);
-    }
+    // Treat all files as text - no base64 encoding needed
+    const decoder = new TextDecoder();
+    const fileContent = decoder.decode(fileBuffer);
+    console.log(`${isPDF ? 'PDF' : 'Text'} file detected. Content length: ${fileContent.length}, Hash: ${contentHash}`);
 
     // Check if we already have a valid analysis for this content
     const { data: existingAnalysis } = await supabase
@@ -238,10 +218,10 @@ KRITISKT - För VARJE tabell i dokumentet:
 4. Notera sidnummer/sektion där tabellen finns
 5. Om tabellen är för stor (>20 rader), ta första 10 och sista 10 + ange [... X rader utelämnade ...]
 
-KRITISKT - För scannade PDFs eller bilder:
-- Använd OCR för att läsa all text noggrant
-- Dubbelkolla siffror och datum
-- Markera om något är osäkert med [OCR: osäker]
+OBS - Detta är textutvinning från PDF:
+- Om texten verkar ofullständig eller saknas kan det vara en scannad PDF utan text layer
+- I så fall, lägg till en varning i "warnings" arrayen om att dokumentet kanske behöver OCR
+- Fokusera på den text som finns tillgänglig i PDF:ens text layer
 
 VIKTIGT - För PDF-dokument, fokusera på:
 - Tabeller och strukturerad data (bevara format och värden exakt)
@@ -376,37 +356,15 @@ Returnera strukturerad JSON:
 
     console.log('Sending request to Lovable AI (gemini-2.5-flash)...');
 
-    // Call Lovable AI - use multimodal for PDFs, text for others
-    const requestBody = isPDF ? {
+    // Call Lovable AI - unified text-only request for all file types
+    const requestBody = {
       model: 'google/gemini-2.5-flash',
       messages: [
         {
           role: 'system',
-          content: 'Du är en expertanalysassistent för PDF-dokument. Analysera dokumentets struktur, tabeller, och innehåll noggrant. Svara alltid i valid JSON-format.'
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: analysisPrompt
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${document.file_type};base64,${base64Data}`
-              }
-            }
-          ]
-        }
-      ],
-      temperature: 0.2,
-    } : {
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        {
-          role: 'system',
-          content: 'Du är en dokumentanalysassistent. Svara alltid i JSON-format, koncist och strukturerat.'
+          content: isPDF 
+            ? 'Du är en expertanalysassistent för PDF-dokument. Du får PDF-innehåll i text-format. Analysera strukturen, tabeller, och data noggrant. Svara alltid i valid JSON-format.'
+            : 'Du är en dokumentanalysassistent. Svara alltid i JSON-format, koncist och strukturerat.'
         },
         {
           role: 'user',
