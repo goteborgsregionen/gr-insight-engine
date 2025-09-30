@@ -81,15 +81,27 @@ serve(async (req) => {
       );
     }
 
-    // Read file content and calculate hash
-    const fileContent = await fileData.text();
-    const encoder = new TextEncoder();
-    const data = encoder.encode(fileContent);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    // Read file content - handle PDFs differently
+    const isPDF = document.file_type === 'application/pdf';
+    const fileBuffer = await fileData.arrayBuffer();
+    
+    // Calculate hash from buffer
+    const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    console.log('File content length:', fileContent.length, 'Hash:', contentHash);
+    // Convert to base64 for PDFs, text for others
+    let fileContent = '';
+    let base64Data = '';
+    
+    if (isPDF) {
+      base64Data = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+      console.log('PDF detected, using base64 encoding. Size:', fileBuffer.byteLength, 'Hash:', contentHash);
+    } else {
+      const decoder = new TextDecoder();
+      fileContent = decoder.decode(fileBuffer);
+      console.log('Text file detected. Content length:', fileContent.length, 'Hash:', contentHash);
+    }
 
     // Check if we already have a valid analysis for this content
     const { data: existingAnalysis } = await supabase
@@ -129,8 +141,72 @@ serve(async (req) => {
       .update({ content_hash: contentHash })
       .eq('id', documentId);
 
-    // Enhanced prompt with reduced length
-    const analysisPrompt = `Analysera detta dokument fokuserat och koncist.
+    // Enhanced prompt - different for PDFs vs text files
+    const analysisPrompt = isPDF 
+      ? `Analysera detta PDF-dokument grundligt och noggrant.
+
+Dokumenttyp: ${document.file_type}
+Dokumentnamn: ${document.file_name}
+
+VIKTIGT - För PDF-dokument, fokusera på:
+- Tabeller och strukturerad data (bevara format och värden exakt)
+- Numeriska värden och KPI:er
+- Hierarkisk information och rubriker
+- Diagram och figurer (beskriv innehåll)
+- Listor och punkter
+- Dokumentets övergripande struktur
+
+Returnera strukturerad JSON:
+
+{
+  "summary": "Detaljerad sammanfattning som inkluderar all viktig data från tabeller och diagram (max 300 ord)",
+  "document_metadata": {
+    "document_type": "typ av dokument",
+    "has_tables": true/false,
+    "has_images": true/false,
+    "time_period": "tidsperiod",
+    "key_actors": ["aktörer"],
+    "geographical_scope": ["områden"],
+    "key_sections": ["viktiga sektioner"]
+  },
+  "extracted_tables": [
+    {
+      "table_name": "beskrivande namn",
+      "headers": ["kolumn1", "kolumn2"],
+      "rows": [["värde1", "värde2"]],
+      "context": "vad tabellen visar"
+    }
+  ],
+  "themes": {
+    "main_themes": ["3-5 huvudteman"],
+    "priorities": ["prioriteringar"],
+    "strengths": ["styrkor"],
+    "challenges": ["utmaningar"]
+  },
+  "business_intelligence": {
+    "economic_kpis": [{"metric": "namn", "value": "exakt värde", "context": "kontext", "source": "var i dokumentet"}],
+    "goals": ["mål"],
+    "risks": ["risker"],
+    "opportunities": ["möjligheter"],
+    "actions": ["åtgärder"],
+    "deadlines": [{"task": "uppgift", "date": "datum"}]
+  },
+  "sentiment_analysis": {
+    "overall_tone": "ton",
+    "confidence_level": "säkerhetsnivå",
+    "focus": "fokus"
+  },
+  "keywords": ["15-20 nyckelord"],
+  "extracted_data": {
+    "dates": ["datum"],
+    "amounts": ["belopp med kontext"],
+    "people": ["personer"],
+    "organizations": ["organisationer"],
+    "locations": ["platser"],
+    "key_numbers": [{"label": "beskrivning", "value": "värde"}]
+  }
+}`
+      : `Analysera detta dokument fokuserat och koncist.
 
 Dokumenttyp: ${document.file_type}
 Dokumentnamn: ${document.file_name}
@@ -179,27 +255,53 @@ Returnera strukturerad JSON:
 
     console.log('Sending request to Lovable AI (gemini-2.5-flash)...');
 
-    // Call Lovable AI with faster model
+    // Call Lovable AI - use multimodal for PDFs, text for others
+    const requestBody = isPDF ? {
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: 'Du är en expertanalysassistent för PDF-dokument. Analysera dokumentets struktur, tabeller, och innehåll noggrant. Svara alltid i valid JSON-format.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: analysisPrompt
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${document.file_type};base64,${base64Data}`
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.2,
+    } : {
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: 'Du är en dokumentanalysassistent. Svara alltid i JSON-format, koncist och strukturerat.'
+        },
+        {
+          role: 'user',
+          content: analysisPrompt
+        }
+      ],
+      temperature: 0.2,
+    };
+
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: 'Du är en dokumentanalysassistent. Svara alltid i JSON-format, koncist och strukturerat.'
-          },
-          {
-            role: 'user',
-            content: analysisPrompt
-          }
-        ],
-        temperature: 0.2,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!aiResponse.ok) {
