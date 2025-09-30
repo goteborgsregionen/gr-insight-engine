@@ -160,36 +160,92 @@ serve(async (req) => {
 
     console.log(`Found ${analyses.length} analyses to compare`);
 
-    // Prepare optimized comparison prompt
-    const comparisonPrompt = `Jämför ${analyses.length} dokument. Ge koncis komparativ analys.
+    // Enhanced comparison prompt with more context and data focus
+    const comparisonPrompt = `Du är en expert på komparativ analys av IT-policy och strategidokument.
+Utför en DJUPGÅENDE och OBEROENDE jämförelse av ${analyses.length} dokument.
 
-DOKUMENT:
+VIKTIGT: Denna jämförelse ska INTE påverkas av tidigare analyser. Behandla detta som en helt ny uppgift.
+
+DOKUMENT OCH DERAS ANALYSER:
 ${analyses.map((a: any, idx: number) => `
-${idx + 1}. ${a.documents.file_name}
-Sammanfattning: ${a.summary.substring(0, 500)}
-Nyckelord: ${a.keywords?.slice(0, 10).join(', ') || 'Inga'}
-`).join('\n')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOKUMENT ${idx + 1}: ${a.documents.file_name}
+Uppladdad: ${new Date(a.documents.uploaded_at).toLocaleDateString('sv-SE')}
+
+📄 SAMMANFATTNING (utökad):
+${a.summary.substring(0, 1500)}
+
+🔑 NYCKELORD (${a.keywords?.length || 0} st):
+${a.keywords?.slice(0, 25).join(', ') || 'Inga'}
+
+📊 EXTRAHERAD DATA:
+${JSON.stringify(a.extracted_data || {}, null, 2).substring(0, 1000)}
+
+📈 TABELLER OCH KPI:er:
+${JSON.stringify(
+  (a.extracted_data?.business_intelligence?.economic_kpis || [])
+    .concat(a.extracted_data?.extracted_tables || []), 
+  null, 
+  2
+).substring(0, 800)}
+`).join('\n\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+INSTRUKTIONER FÖR JÄMFÖRELSE:
+
+1. **Fokusera på konkreta data:**
+   - Jämför tabeller och numeriska värden exakt
+   - Identifiera KPI-skillnader och trender
+   - Hitta gemensamma mätetal och avvikelser
+
+2. **Undvik generalisering:**
+   - Ge SPECIFIKA exempel från dokumenten
+   - Citera konkreta skillnader och likheter
+   - Referera till faktiska data-punkter
+
+3. **Oberoende analys:**
+   - Behandla detta som en helt ny analys
+   - Dra inga slutsatser från tidigare jämförelser
+   - Basera allt på den data som finns ovan
+
+4. **Strukturerad output:**
+   - comparison_summary: 300-400 ord med konkreta exempel
+   - Inkludera numeriska jämförelser där möjligt
+   - Referera till specifika dokument vid skillnader
 
 Returnera JSON:
 
 {
-  "comparison_summary": "Övergripande jämförelse (150-200 ord)",
+  "comparison_summary": "DETALJERAD jämförelse (300-400 ord) som inkluderar specifika exempel från tabeller och KPI:er. Nämn konkreta siffror och trender.",
   "commonalities": {
-    "shared_themes": ["gemensamma teman"],
-    "shared_keywords": ["gemensamma nyckelord"],
-    "shared_actors": ["gemensamma aktörer"],
-    "consistent_priorities": ["konsekventa prioriteringar"]
+    "shared_themes": ["gemensamma teman med förklaring"],
+    "shared_keywords": ["top 10 gemensamma nyckelord"],
+    "shared_actors": ["gemensamma aktörer/organisationer"],
+    "consistent_priorities": ["prioriteringar som förekommer i flera dokument"],
+    "common_kpis": [{"metric": "namn", "documents": ["dok1", "dok2"], "values": ["val1", "val2"]}]
   },
   "differences": {
-    "unique_themes": [{"document": "namn", "themes": ["unika teman"]}],
-    "diverging_priorities": ["skilda prioriteringar"],
-    "conflicting_information": ["motsägelser"]
+    "unique_themes": [{"document": "namn", "themes": ["unika teman"], "significance": "varför viktigt"}],
+    "diverging_priorities": ["skilda prioriteringar med förklaring"],
+    "conflicting_information": ["motsägelser mellan dokument"],
+    "unique_kpis": [{"metric": "namn", "document": "dok", "value": "värde", "context": "kontext"}]
+  },
+  "data_comparison": {
+    "budgets": [{"document": "namn", "amount": "belopp", "year": "år"}],
+    "timelines": [{"document": "namn", "key_dates": ["datum1", "datum2"]}],
+    "quantitative_differences": ["konkreta numeriska skillnader"]
   },
   "similarity_matrix": [
-    {"document_pair": "Dok 1 vs Dok 2", "similarity_score": 0.75, "similarity_reasoning": "kort förklaring"}
+    {"document_pair": "Dok 1 vs Dok 2", "similarity_score": 0.75, "similarity_reasoning": "baserat på gemensamma KPI:er, teman, och nyckelord", "key_overlaps": ["overlap1", "overlap2"]}
   ],
-  "key_insights": ["3-5 viktiga insikter"],
-  "recommendations": ["2-3 rekommendationer"]
+  "thematic_trends": {
+    "emerging_themes": ["teman som växer mellan dokument"],
+    "declining_themes": ["teman som minskar"],
+    "stable_themes": ["konstanta teman"]
+  },
+  "key_insights": ["5-7 KONKRETA insikter med specifika exempel och siffror"],
+  "recommendations": ["3-5 handlingsbara rekommendationer baserade på jämförelsen"]
 }`;
 
     console.log('Sending comparison request to Lovable AI...');

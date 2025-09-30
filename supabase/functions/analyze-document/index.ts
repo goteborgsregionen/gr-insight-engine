@@ -168,67 +168,101 @@ serve(async (req) => {
 
     // Enhanced prompt - different for PDFs vs text files
     const analysisPrompt = isPDF 
-      ? `Analysera detta PDF-dokument grundligt och noggrant.
+      ? `Analysera detta PDF-dokument grundligt och noggrant med särskilt fokus på datautvinning.
 
 Dokumenttyp: ${document.file_type}
 Dokumentnamn: ${document.file_name}
 
+KRITISKT - För VARJE tabell i dokumentet:
+1. Extrahera ALLA kolumnrubriker exakt som de står
+2. Extrahera ALLA rader - hoppa inte över någon
+3. Bevara numeriska värden EXAKT (inklusive enheter som MSEK, %, etc.)
+4. Notera sidnummer/sektion där tabellen finns
+5. Om tabellen är för stor (>20 rader), ta första 10 och sista 10 + ange [... X rader utelämnade ...]
+
+KRITISKT - För scannade PDFs eller bilder:
+- Använd OCR för att läsa all text noggrant
+- Dubbelkolla siffror och datum
+- Markera om något är osäkert med [OCR: osäker]
+
 VIKTIGT - För PDF-dokument, fokusera på:
 - Tabeller och strukturerad data (bevara format och värden exakt)
-- Numeriska värden och KPI:er
+- Numeriska värden och KPI:er med fullständig kontext
 - Hierarkisk information och rubriker
-- Diagram och figurer (beskriv innehåll)
+- Diagram och figurer (beskriv innehåll detaljerat)
 - Listor och punkter
 - Dokumentets övergripande struktur
+- Sidhänvisningar för alla data
 
 Returnera strukturerad JSON:
 
 {
   "summary": "Detaljerad sammanfattning som inkluderar all viktig data från tabeller och diagram (max 300 ord)",
   "document_metadata": {
-    "document_type": "typ av dokument",
+    "document_type": "typ av dokument (t.ex. IT-strategi, budget, policy)",
     "has_tables": true/false,
     "has_images": true/false,
-    "time_period": "tidsperiod",
-    "key_actors": ["aktörer"],
-    "geographical_scope": ["områden"],
-    "key_sections": ["viktiga sektioner"]
+    "time_period": "tidsperiod som dokumentet täcker",
+    "key_actors": ["aktörer och organisationer"],
+    "geographical_scope": ["områden och regioner"],
+    "key_sections": ["viktiga sektioner med sidnummer"],
+    "total_pages": antal_sidor
   },
   "extracted_tables": [
     {
       "table_name": "beskrivande namn",
-      "headers": ["kolumn1", "kolumn2"],
-      "rows": [["värde1", "värde2"]],
-      "context": "vad tabellen visar"
+      "page_number": sidnummer,
+      "headers": ["kolumn1", "kolumn2", "kolumn3"],
+      "rows": [["värde1", "värde2", "värde3"], ["värde4", "värde5", "värde6"]],
+      "context": "vad tabellen visar och varför den är viktig",
+      "notes": "eventuella fotnoter eller förklaringar"
     }
   ],
   "themes": {
-    "main_themes": ["3-5 huvudteman"],
-    "priorities": ["prioriteringar"],
-    "strengths": ["styrkor"],
-    "challenges": ["utmaningar"]
+    "main_themes": ["3-5 huvudteman med kort förklaring"],
+    "priorities": ["prioriteringar i prioritetsordning"],
+    "strengths": ["styrkor som identifieras"],
+    "challenges": ["utmaningar och problem som nämns"]
   },
   "business_intelligence": {
-    "economic_kpis": [{"metric": "namn", "value": "exakt värde", "context": "kontext", "source": "var i dokumentet"}],
-    "goals": ["mål"],
-    "risks": ["risker"],
-    "opportunities": ["möjligheter"],
-    "actions": ["åtgärder"],
-    "deadlines": [{"task": "uppgift", "date": "datum"}]
+    "economic_kpis": [
+      {
+        "metric": "Budget IT 2024",
+        "value": "45 miljoner SEK",
+        "context": "Ökning från 40 MSEK 2023 (+12.5%)",
+        "source": "Sida 12, Tabell 3: Ekonomisk plan",
+        "trend": "uppåtgående",
+        "comparison_baseline": {"year": 2023, "value": "40 MSEK"}
+      }
+    ],
+    "goals": ["konkreta mål med tidsramar"],
+    "risks": ["identifierade risker med allvarlighetsgrad"],
+    "opportunities": ["möjligheter som framhålls"],
+    "actions": ["planerade åtgärder med ansvarig och deadline"],
+    "deadlines": [{"task": "uppgift", "date": "datum", "responsible": "ansvarig"}]
   },
   "sentiment_analysis": {
-    "overall_tone": "ton",
-    "confidence_level": "säkerhetsnivå",
-    "focus": "fokus"
+    "overall_tone": "positiv/neutral/negativ/blandad",
+    "confidence_level": "hög/medel/låg säkerhet i dokumentet",
+    "focus": "huvudsakligt fokusområde"
   },
-  "keywords": ["15-20 nyckelord"],
+  "keywords": ["15-25 nyckelord och fraser"],
   "extracted_data": {
-    "dates": ["datum"],
-    "amounts": ["belopp med kontext"],
-    "people": ["personer"],
-    "organizations": ["organisationer"],
-    "locations": ["platser"],
-    "key_numbers": [{"label": "beskrivning", "value": "värde"}]
+    "dates": ["datum med kontext"],
+    "amounts": ["belopp med fullständig kontext och enhet"],
+    "people": ["personer med roller"],
+    "organizations": ["organisationer med relation till dokumentet"],
+    "locations": ["platser med kontext"],
+    "key_numbers": [{"label": "beskrivning", "value": "värde", "unit": "enhet", "page": sidnummer}]
+  },
+  "analysis_confidence": {
+    "overall_score": 0.85,
+    "text_quality": "high",
+    "table_extraction_success": true,
+    "tables_found": 5,
+    "tables_extracted": 5,
+    "ocr_required": false,
+    "warnings": ["eventuella problem eller osäkerheter"]
   }
 }`
       : `Analysera detta dokument fokuserat och koncist.
