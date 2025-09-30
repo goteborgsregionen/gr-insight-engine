@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface UploadFile {
   file: File;
@@ -26,8 +29,15 @@ interface DocumentUploadZoneProps {
 
 export const DocumentUploadZone = ({ onUploadComplete }: DocumentUploadZoneProps) => {
   const [uploadingFiles, setUploadingFiles] = useState<UploadFile[]>([]);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (!user) {
+      toast.error("Du måste vara inloggad för att ladda upp dokument");
+      return;
+    }
+
     const newFiles: UploadFile[] = acceptedFiles.map((file) => ({
       file,
       progress: 0,
@@ -36,26 +46,62 @@ export const DocumentUploadZone = ({ onUploadComplete }: DocumentUploadZoneProps
 
     setUploadingFiles((prev) => [...prev, ...newFiles]);
 
-    // Simulate upload for now (will be replaced with actual Supabase upload)
     for (const uploadFile of newFiles) {
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+      try {
+        // Generate unique file path
+        const timestamp = Date.now();
+        const filePath = `${user.id}/${timestamp}_${uploadFile.file.name}`;
+
+        // Update progress to show upload started
         setUploadingFiles((prev) =>
           prev.map((f) =>
-            f.id === uploadFile.id ? { ...f, progress } : f
+            f.id === uploadFile.id ? { ...f, progress: 50 } : f
           )
         );
+
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from("documents")
+          .upload(filePath, uploadFile.file);
+
+        if (uploadError) throw uploadError;
+
+        // Save metadata to database
+        const { error: dbError } = await supabase.from("documents").insert({
+          title: uploadFile.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+          file_name: uploadFile.file.name,
+          file_type: uploadFile.file.type,
+          file_size: uploadFile.file.size,
+          file_path: filePath,
+          uploaded_by: user.id,
+          status: "uploaded",
+        });
+
+        if (dbError) throw dbError;
+
+        // Update progress to completed
+        setUploadingFiles((prev) =>
+          prev.map((f) =>
+            f.id === uploadFile.id ? { ...f, progress: 100 } : f
+          )
+        );
+
+        toast.success(`${uploadFile.file.name} uppladdad!`);
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error(`Kunde inte ladda upp ${uploadFile.file.name}`);
+        setUploadingFiles((prev) => prev.filter((f) => f.id !== uploadFile.id));
       }
-      
-      toast.success(`${uploadFile.file.name} uppladdad!`);
     }
 
-    // Clear completed uploads after a delay
+    // Clear completed uploads and refresh list
     setTimeout(() => {
       setUploadingFiles([]);
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       onUploadComplete();
     }, 1000);
-  }, [onUploadComplete]);
+  }, [user, onUploadComplete, queryClient]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

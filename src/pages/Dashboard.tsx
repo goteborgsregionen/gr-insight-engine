@@ -1,19 +1,47 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, TrendingUp, CheckCircle, Clock } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDate } from "@/lib/format";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const stats = [
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: async () => {
+      const [docsResult, analyzedResult, lastDoc] = await Promise.all([
+        supabase.from("documents").select("id", { count: "exact", head: true }),
+        supabase.from("analysis_results").select("id", { count: "exact", head: true }),
+        supabase
+          .from("documents")
+          .select("uploaded_at")
+          .order("uploaded_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      return {
+        docsCount: docsResult.count || 0,
+        analyzedCount: analyzedResult.count || 0,
+        lastActivity: lastDoc?.data?.uploaded_at
+          ? formatDate(lastDoc.data.uploaded_at)
+          : "Ingen aktivitet",
+      };
+    },
+  });
+
+  const statsCards = [
     {
       title: "Uppladdade dokument",
-      value: "0",
+      value: stats?.docsCount.toString() || "0",
       icon: FileText,
       description: "Totalt antal dokument",
       color: "text-primary",
     },
     {
       title: "Analyserade dokument",
-      value: "0",
+      value: stats?.analyzedCount.toString() || "0",
       icon: CheckCircle,
       description: "AI-analyserade",
       color: "text-accent",
@@ -27,9 +55,9 @@ export default function Dashboard() {
     },
     {
       title: "Senaste aktivitet",
-      value: "-",
+      value: stats?.lastActivity || "Ingen aktivitet",
       icon: Clock,
-      description: "Ingen aktivitet än",
+      description: stats?.lastActivity && stats.lastActivity !== "Ingen aktivitet" ? "" : "Ingen aktivitet än",
       color: "text-muted-foreground",
     },
   ];
@@ -45,22 +73,37 @@ export default function Dashboard() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {stat.title}
-                </CardTitle>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stat.description}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+          {isLoading
+            ? [1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-4" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-16 mb-2" />
+                    <Skeleton className="h-3 w-24" />
+                  </CardContent>
+                </Card>
+              ))
+            : statsCards.map((stat) => (
+                <Card key={stat.title}>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {stat.title}
+                    </CardTitle>
+                    <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stat.value}</div>
+                    {stat.description && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {stat.description}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
         </div>
 
         <Card>
