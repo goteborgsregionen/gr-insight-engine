@@ -10,6 +10,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { checkForDuplicate, createNewVersion } from "@/lib/documents";
 import { ReplaceFileDialog } from "./ReplaceFileDialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
+import * as LucideIcons from "lucide-react";
 
 // Sanitize filename for storage (remove special characters, Swedish chars)
 const sanitizeFilename = (filename: string): string => {
@@ -50,6 +55,8 @@ interface DocumentUploadZoneProps {
 
 export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadFile[]>([]);
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<string>('standard');
+  const [customPrompt, setCustomPrompt] = useState<string>('');
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
@@ -171,12 +178,16 @@ export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps
 
           if (dbError) throw dbError;
 
-          // Trigger auto-analysis in background
+          // Trigger auto-analysis in background with selected analysis type
           if (insertedDoc) {
             supabase.functions.invoke('analyze-document', {
-              body: { documentId: insertedDoc.id }
+              body: { 
+                documentId: insertedDoc.id,
+                analysis_type: selectedAnalysisType,
+                custom_prompt: selectedAnalysisType === 'custom' ? customPrompt : undefined
+              }
             }).then(() => {
-              console.log(`Analysis started for document ${insertedDoc.id}`);
+              console.log(`Analysis started for document ${insertedDoc.id} with type ${selectedAnalysisType}`);
             }).catch((err) => {
               console.error('Failed to trigger analysis:', err);
             });
@@ -232,6 +243,54 @@ export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Analysfokus</CardTitle>
+          <CardDescription>Välj hur dokumentet ska analyseras</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Select
+            value={selectedAnalysisType}
+            onValueChange={setSelectedAnalysisType}
+          >
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder="Välj analystyp" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover z-50">
+              {ANALYSIS_TEMPLATES.map((template) => {
+                const IconComponent = (LucideIcons as any)[template.icon];
+                return (
+                  <SelectItem key={template.id} value={template.id}>
+                    <div className="flex items-center gap-2">
+                      {IconComponent && <IconComponent className="h-4 w-4" />}
+                      {template.name}
+                    </div>
+                  </SelectItem>
+                );
+              })}
+              <SelectItem value="custom">
+                ✍️ Egen prompt...
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          {selectedAnalysisType === 'custom' && (
+            <Textarea
+              placeholder="Beskriv vad analysen ska fokusera på..."
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              rows={4}
+            />
+          )}
+
+          {selectedAnalysisType !== 'standard' && selectedAnalysisType !== 'custom' && (
+            <p className="text-xs text-muted-foreground">
+              {ANALYSIS_TEMPLATES.find(t => t.id === selectedAnalysisType)?.description}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <div
         {...getRootProps()}
         className={cn(

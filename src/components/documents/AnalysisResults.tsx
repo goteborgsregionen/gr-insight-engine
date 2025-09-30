@@ -4,22 +4,59 @@ import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { Calendar, Tag, Database } from "lucide-react";
+import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
+import * as LucideIcons from "lucide-react";
 
 interface AnalysisResultsProps {
   summary: string | null;
   keywords: string[] | null;
   extracted_data: any;
   analyzed_at: string;
+  analysis_type?: string;
+  custom_prompt?: string;
+  analysis_focus?: any;
 }
 
 export function AnalysisResults({ 
   summary, 
   keywords, 
   extracted_data, 
-  analyzed_at 
+  analyzed_at,
+  analysis_type = 'standard',
+  custom_prompt,
+  analysis_focus
 }: AnalysisResultsProps) {
+  const template = ANALYSIS_TEMPLATES.find(t => t.id === analysis_type);
+  const IconComponent = template ? (LucideIcons as any)[template.icon] : null;
+
   return (
     <div className="space-y-4 mt-4 pl-4 border-l-2 border-primary/20">
+      {/* Analysis Type Badge */}
+      {template && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-sm">
+            {IconComponent && <IconComponent className="h-3 w-3 mr-1" />}
+            {template.name}
+          </Badge>
+          {analysis_focus?.focus_areas && (
+            <span className="text-xs text-muted-foreground">
+              Fokusområden: {analysis_focus.focus_areas.join(', ')}
+            </span>
+          )}
+        </div>
+      )}
+
+      {analysis_type === 'custom' && custom_prompt && (
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-sm">Custom Prompt</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground italic">{custom_prompt}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Timestamp */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Calendar className="h-4 w-4" />

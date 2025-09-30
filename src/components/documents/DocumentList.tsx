@@ -7,6 +7,9 @@ import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
+import * as LucideIcons from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +37,13 @@ export function DocumentList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("documents")
-        .select("*")
+        .select(`
+          *,
+          analysis_results (
+            analysis_type,
+            custom_prompt
+          )
+        `)
         .order("uploaded_at", { ascending: false });
 
       if (error) throw error;
@@ -157,6 +166,8 @@ export function DocumentList() {
 
   const renderDocument = (doc: Document, isLatest: boolean = true) => {
     const Icon = getFileIcon(doc.file_type);
+    const analysisType = (doc as any).analysis_results?.[0]?.analysis_type;
+    const template = ANALYSIS_TEMPLATES.find(t => t.id === analysisType);
     
     return (
       <Card key={doc.id} className={!isLatest ? "ml-8" : ""}>
@@ -167,9 +178,23 @@ export function DocumentList() {
                 <Icon className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <CardTitle className="text-lg">{doc.title}</CardTitle>
                   <VersionBadge version={doc.version_number} isLatest={doc.is_latest_version} />
+                  {analysisType && template && (
+                    <Badge variant="outline" className={`text-${template.color}-600 border-${template.color}-600`}>
+                      {(() => {
+                        const IconComponent = (LucideIcons as any)[template.icon];
+                        return IconComponent ? <IconComponent className="h-3 w-3 mr-1" /> : null;
+                      })()}
+                      {template.name}
+                    </Badge>
+                  )}
+                  {analysisType === 'custom' && (
+                    <Badge variant="outline">
+                      ✍️ Custom
+                    </Badge>
+                  )}
                 </div>
                 <CardDescription className="mt-1">
                   {doc.file_type.split("/")[1]?.toUpperCase() || "UNKNOWN"} •{" "}

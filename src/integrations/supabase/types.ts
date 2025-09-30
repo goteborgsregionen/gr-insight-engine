@@ -90,7 +90,10 @@ export type Database = {
       }
       analysis_results: {
         Row: {
+          analysis_focus: Json | null
+          analysis_type: string | null
           analyzed_at: string | null
+          custom_prompt: string | null
           document_id: string | null
           extracted_data: Json | null
           id: string
@@ -100,7 +103,10 @@ export type Database = {
           summary: string | null
         }
         Insert: {
+          analysis_focus?: Json | null
+          analysis_type?: string | null
           analyzed_at?: string | null
+          custom_prompt?: string | null
           document_id?: string | null
           extracted_data?: Json | null
           id?: string
@@ -110,7 +116,10 @@ export type Database = {
           summary?: string | null
         }
         Update: {
+          analysis_focus?: Json | null
+          analysis_type?: string | null
           analyzed_at?: string | null
+          custom_prompt?: string | null
           document_id?: string | null
           extracted_data?: Json | null
           id?: string

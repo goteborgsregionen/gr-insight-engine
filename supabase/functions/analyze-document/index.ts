@@ -26,8 +26,8 @@ serve(async (req) => {
   }
 
   try {
-    const { documentId } = await req.json();
-    console.log('Analyzing document:', documentId);
+    const { documentId, analysis_type = 'standard', custom_prompt } = await req.json();
+    console.log('Analyzing document:', documentId, 'with analysis type:', analysis_type);
 
     if (!documentId) {
       return new Response(
@@ -166,12 +166,70 @@ serve(async (req) => {
       .update({ content_hash: contentHash })
       .eq('id', documentId);
 
+    // Get template-specific prompt modifier
+    const getTemplateModifier = (type: string, customPrompt?: string): string => {
+      if (type === 'custom' && customPrompt) {
+        return `\n\nANVÄNDAR-SPECIFIKT FOKUS:\n${customPrompt}\n`;
+      }
+      
+      const templates: Record<string, string> = {
+        economic: `
+EKONOMISKT FOKUS - KRITISKT VIKTIGT:
+- Extrahera ALLA budgetsiffror, kostnader och ekonomiska värden
+- Hitta ALLA KPI:er relaterade till ekonomi och finans
+- Identifiera ROI, cost-benefit, och ekonomiska prognoser
+- Notera år, jämförelsevärden och trender
+- Markera finansiella risker och möjligheter
+`,
+        security: `
+SÄKERHETSFOKUS - KRITISKT VIKTIGT:
+- Identifiera ALLA säkerhetsåtgärder och kontroller
+- Hitta hot-scenarier, risker och sårbarheter
+- Extrahera compliance-krav (GDPR, ISO27001, etc.)
+- Notera säkerhetsincidenter och lärdomar
+- Hitta säkerhetsbudget och resurser
+`,
+        strategic: `
+STRATEGISKT FOKUS - KRITISKT VIKTIGT:
+- Identifiera vision, mission och övergripande mål
+- Extrahera långsiktiga planer och milestones
+- Hitta strategiska prioriteringar och initiativ
+- Notera konkurrensfördelar och differentiering
+- Identifiera strategiska risker och beroenden
+`,
+        technical: `
+TEKNISKT FOKUS - KRITISKT VIKTIGT:
+- Extrahera tekniska specifikationer och arkitektur
+- Identifiera teknologier, plattformar och verktyg
+- Hitta tekniska krav och beroenden
+- Notera integrationer och API:er
+- Identifiera tekniska risker och teknisk skuld
+`,
+        kpi_metrics: `
+KPI-FOKUS - KRITISKT VIKTIGT:
+- Extrahera ALLA mätetal och KPI:er
+- Hitta målvärden, baseline och actual values
+- Identifiera framgångsfaktorer och success criteria
+- Notera mätfrekvens och ansvarsfördelning
+- Hitta dashboards och rapporteringsstrukturer
+`
+      };
+      
+      return templates[type] || '';
+    };
+
+    const templateModifier = getTemplateModifier(analysis_type, custom_prompt);
+
     // Enhanced prompt - different for PDFs vs text files
-    const analysisPrompt = isPDF 
+    const analysisPrompt = isPDF
       ? `Analysera detta PDF-dokument grundligt och noggrant med särskilt fokus på datautvinning.
 
 Dokumenttyp: ${document.file_type}
 Dokumentnamn: ${document.file_name}
+
+${templateModifier}
+
+${templateModifier ? 'VIKTIGT: Anpassa din analys efter det fokus som specificeras ovan. Om ekonomiskt fokus: prioritera siffror och KPI:er. Om säkerhetsfokus: prioritera hot och kontroller. Etc.' : ''}
 
 KRITISKT - För VARJE tabell i dokumentet:
 1. Extrahera ALLA kolumnrubriker exakt som de står
@@ -269,6 +327,10 @@ Returnera strukturerad JSON:
 
 Dokumenttyp: ${document.file_type}
 Dokumentnamn: ${document.file_name}
+
+${templateModifier}
+
+${templateModifier ? 'VIKTIGT: Anpassa din analys efter det fokus som specificeras ovan.' : ''}
 
 Innehåll (första 30000 tecken):
 ${fileContent.substring(0, 30000)}
@@ -416,6 +478,20 @@ Returnera strukturerad JSON:
     const processingTime = Date.now() - startTime;
     console.log('Analysis took:', processingTime, 'ms');
 
+    // Get focus areas based on template
+    const getFocusAreas = (type: string): string[] => {
+      const focusMap: Record<string, string[]> = {
+        standard: ['summary', 'keywords', 'key_points'],
+        economic: ['budgets', 'costs', 'economic_kpis', 'roi', 'financial_trends'],
+        security: ['security_measures', 'risks', 'compliance', 'incidents', 'controls'],
+        strategic: ['vision', 'goals', 'strategic_initiatives', 'milestones', 'competitive_advantages'],
+        technical: ['technical_specs', 'architecture', 'technologies', 'integrations', 'technical_debt'],
+        kpi_metrics: ['kpis', 'metrics', 'targets', 'success_criteria', 'measurement_frequency'],
+        custom: ['custom_analysis']
+      };
+      return focusMap[type] || focusMap.standard;
+    };
+
     // Save analysis result with processing time
     const { data: savedResult, error: saveError } = await supabase
       .from('analysis_results')
@@ -426,6 +502,13 @@ Returnera strukturerad JSON:
         extracted_data: analysisResult.extracted_data || {},
         is_valid: true,
         processing_time: processingTime,
+        analysis_type: analysis_type,
+        custom_prompt: custom_prompt || null,
+        analysis_focus: {
+          type: analysis_type,
+          custom: analysis_type === 'custom',
+          focus_areas: getFocusAreas(analysis_type)
+        }
       })
       .select()
       .single();
