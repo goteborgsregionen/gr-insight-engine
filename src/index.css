@@ -8,89 +8,101 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* GR Färgpalett */
+    --gr-turkos: 176 100% 32%;
+    --gr-red: 353 83% 54%;
+    --gr-green: 96 47% 51%;
+    --gr-peach: 24 77% 71%;
+    --gr-pink: 7 100% 93%;
+    --gr-wheat: 45 100% 89%;
+    --gr-blue: 189 72% 83%;
+    --gr-black: 356 6% 13%;
+    
+    /* Base colors using GR palette */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    --foreground: var(--gr-black);
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
+    --card-foreground: var(--gr-black);
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
+    --popover-foreground: var(--gr-black);
+    
+    /* Primary = GR Turkos */
+    --primary: var(--gr-turkos);
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary = GR Peach */
+    --secondary: var(--gr-peach);
+    --secondary-foreground: var(--gr-black);
+    
+    /* Muted = GR Pink (light) */
+    --muted: var(--gr-pink);
+    --muted-foreground: var(--gr-black);
+    
+    /* Accent = GR Green */
+    --accent: var(--gr-green);
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive = GR Red */
+    --destructive: var(--gr-red);
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: var(--gr-turkos);
+    
+    /* Charts using GR colors */
+    --chart-1: var(--gr-turkos);
+    --chart-2: var(--gr-green);
+    --chart-3: var(--gr-red);
+    --chart-4: var(--gr-peach);
+    --chart-5: var(--gr-blue);
+    
     --radius: 0.5rem;
-
+    
+    /* Sidebar using GR colors */
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-foreground: var(--gr-black);
+    --sidebar-primary: var(--gr-turkos);
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: var(--gr-pink);
+    --sidebar-accent-foreground: var(--gr-black);
+    --sidebar-border: 0 0% 89.8%;
+    --sidebar-ring: var(--gr-turkos);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --background: var(--gr-black);
+    --foreground: 0 0% 98%;
+    --card: 356 6% 18%;
+    --card-foreground: 0 0% 98%;
+    --popover: 356 6% 18%;
+    --popover-foreground: 0 0% 98%;
+    --primary: var(--gr-turkos);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--gr-peach);
+    --secondary-foreground: var(--gr-black);
+    --muted: 356 6% 25%;
+    --muted-foreground: 0 0% 70%;
+    --accent: var(--gr-green);
+    --accent-foreground: 0 0% 100%;
+    --destructive: var(--gr-red);
+    --destructive-foreground: 0 0% 100%;
+    --border: 356 6% 25%;
+    --input: 356 6% 25%;
+    --ring: var(--gr-turkos);
+    --chart-1: var(--gr-turkos);
+    --chart-2: var(--gr-green);
+    --chart-3: var(--gr-red);
+    --chart-4: var(--gr-peach);
+    --chart-5: var(--gr-blue);
+    --sidebar-background: 356 6% 15%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: var(--gr-turkos);
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 356 6% 25%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 356 6% 25%;
+    --sidebar-ring: var(--gr-turkos);
   }
 }
 
