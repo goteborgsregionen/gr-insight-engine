@@ -21,7 +21,6 @@ import { useState } from "react";
 import { formatFileSize } from "@/lib/format";
 import { groupByDocumentFamily, Document } from "@/lib/documents";
 import { VersionBadge } from "./VersionBadge";
-import { DocumentAnalysis } from "./DocumentAnalysis";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export function DocumentList() {
@@ -210,9 +209,6 @@ export function DocumentList() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <DocumentAnalysis documentId={doc.id} />
-        </CardContent>
       </Card>
     );
   };

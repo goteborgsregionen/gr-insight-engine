@@ -8,14 +8,16 @@ import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2, TrendingUp, GitCompare, FileSearch } from "lucide-react";
 import { ComparisonResults } from "@/components/analysis/ComparisonResults";
+import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
+import { AggregateInsights } from "@/components/analysis/AggregateInsights";
 
 export default function Analysis() {
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const queryClient = useQueryClient();
 
-  // Fetch analyzed documents
+  // Fetch all documents
   const { data: documents, isLoading: docsLoading } = useQuery({
-    queryKey: ["analyzed-documents"],
+    queryKey: ["all-documents"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("documents")
@@ -26,7 +28,6 @@ export default function Analysis() {
           uploaded_at,
           analysis_results(id, analyzed_at, summary)
         `)
-        .not("analysis_results", "is", null)
         .order("uploaded_at", { ascending: false });
 
       if (error) throw error;
@@ -66,6 +67,7 @@ export default function Analysis() {
         description: "Dokumenten har analyserats och jämförts",
       });
       queryClient.invalidateQueries({ queryKey: ["latest-comparison"] });
+      queryClient.invalidateQueries({ queryKey: ["all-documents"] });
       setSelectedDocs([]);
     },
     onError: (error: Error) => {
@@ -135,11 +137,17 @@ export default function Analysis() {
     <MainLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Komparativ Analys</h1>
+          <h1 className="text-3xl font-bold mb-2">Analys</h1>
           <p className="text-muted-foreground">
-            Jämför flera dokument och hitta trender, likheter och insikter
+            Ladda upp och analysera dokument, jämför och hitta trender och insikter
           </p>
         </div>
+
+        <DocumentUploadZone 
+          onUploadComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ["all-documents"] });
+          }}
+        />
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
@@ -156,7 +164,7 @@ export default function Analysis() {
               <div className="space-y-4">
                 {!documents || documents.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Inga analyserade dokument finns ännu. Analysera dokument först.
+                    Inga dokument finns ännu. Ladda upp dokument först.
                   </p>
                 ) : (
                   <>
@@ -249,6 +257,8 @@ export default function Analysis() {
             </CardContent>
           </Card>
         </div>
+
+        <AggregateInsights />
 
         {latestComparison && (
           <ComparisonResults comparison={latestComparison} />

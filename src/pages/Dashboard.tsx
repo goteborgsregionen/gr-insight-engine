@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AggregateInsights } from "@/components/analysis/AggregateInsights";
 
 export default function Dashboard() {
   const { data: stats, isLoading } = useQuery({
@@ -105,6 +106,8 @@ export default function Dashboard() {
                 </Card>
               ))}
         </div>
+
+        <AggregateInsights />
 
         <Card>
           <CardHeader>

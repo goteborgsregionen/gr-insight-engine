@@ -45,6 +45,43 @@ serve(async (req) => {
       );
     }
 
+    // Check which documents are already analyzed
+    const { data: existingAnalyses } = await supabase
+      .from('analysis_results')
+      .select('document_id')
+      .in('document_id', documentIds);
+    
+    const analyzedDocIds = new Set(existingAnalyses?.map((a: any) => a.document_id) || []);
+    const unanalyzedDocIds = documentIds.filter((id: string) => !analyzedDocIds.has(id));
+
+    // Analyze unanalyzed documents first
+    if (unanalyzedDocIds.length > 0) {
+      console.log(`Analyzing ${unanalyzedDocIds.length} unanalyzed documents first...`);
+      
+      for (const docId of unanalyzedDocIds) {
+        try {
+          const analyzeResponse = await supabase.functions.invoke('analyze-document', {
+            body: { documentId: docId },
+          });
+          
+          if (analyzeResponse.error) {
+            console.error(`Failed to analyze document ${docId}:`, analyzeResponse.error);
+            return new Response(
+              JSON.stringify({ error: `Failed to analyze document ${docId}` }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          console.log(`Document ${docId} analyzed successfully`);
+        } catch (analyzeError) {
+          console.error(`Error analyzing document ${docId}:`, analyzeError);
+          return new Response(
+            JSON.stringify({ error: `Error analyzing document ${docId}` }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
     // Fetch analyses for all documents
     const { data: analyses, error: analysisError } = await supabase
       .from('analysis_results')
