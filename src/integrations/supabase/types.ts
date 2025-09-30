@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      aggregate_insights: {
+        Row: {
+          analyzed_document_count: number | null
+          created_at: string
+          id: string
+          insights: Json | null
+          recommendations: string[] | null
+          trend_data: Json | null
+          user_id: string
+        }
+        Insert: {
+          analyzed_document_count?: number | null
+          created_at?: string
+          id?: string
+          insights?: Json | null
+          recommendations?: string[] | null
+          trend_data?: Json | null
+          user_id: string
+        }
+        Update: {
+          analyzed_document_count?: number | null
+          created_at?: string
+          id?: string
+          insights?: Json | null
+          recommendations?: string[] | null
+          trend_data?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       analysis_results: {
         Row: {
           analyzed_at: string | null
@@ -48,6 +78,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      comparative_analysis: {
+        Row: {
+          comparison_result: Json | null
+          created_at: string
+          document_ids: string[]
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comparison_result?: Json | null
+          created_at?: string
+          document_ids: string[]
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comparison_result?: Json | null
+          created_at?: string
+          document_ids?: string[]
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       documents: {
         Row: {

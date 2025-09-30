@@ -70,11 +70,8 @@ serve(async (req) => {
     const fileContent = await fileData.text();
     console.log('File content length:', fileContent.length);
 
-    // Prepare prompt for AI analysis
-    const analysisPrompt = `Analysera följande dokument och extrahera:
-1. En kort sammanfattning (max 200 ord)
-2. Nyckelord och viktiga begrepp (lista)
-3. Strukturerad data om det finns (t.ex. datum, belopp, namn, kontaktuppgifter)
+    // Enhanced prompt for deeper analysis
+    const analysisPrompt = `Analysera detta GR-dokument med fokus på affärsinsikter och strategisk information.
 
 Dokumenttyp: ${document.file_type}
 Dokumentnamn: ${document.file_name}
@@ -82,16 +79,50 @@ Dokumentnamn: ${document.file_name}
 Innehåll:
 ${fileContent.substring(0, 50000)}
 
-Svara i JSON-format med följande struktur:
+Utför en djupanalys och extrahera följande strukturerade information i JSON-format:
+
 {
-  "summary": "sammanfattning här",
-  "keywords": ["nyckelord1", "nyckelord2", ...],
+  "summary": "En koncis sammanfattning av dokumentets huvudsakliga innehåll och syfte (max 300 ord)",
+  
+  "document_metadata": {
+    "document_type": "typ av dokument (t.ex. årsredovisning, strategi, policy, rapport)",
+    "time_period": "tidsperiod som dokumentet avser",
+    "key_actors": ["huvudaktörer, organisationer eller personer som nämns"],
+    "geographical_scope": ["geografiska områden som täcks"]
+  },
+  
+  "themes": {
+    "main_themes": ["3-5 huvudteman i dokumentet"],
+    "priorities": ["identifierade prioriteringar"],
+    "strengths": ["starka punkter eller styrkor som lyfts fram"],
+    "challenges": ["utmaningar eller problem som identifieras"]
+  },
+  
+  "business_intelligence": {
+    "economic_kpis": [
+      {"metric": "namn på nyckeltal", "value": "värde", "context": "sammanhang"}
+    ],
+    "goals": ["identifierade mål och målsättningar"],
+    "risks": ["identifierade risker"],
+    "opportunities": ["identifierade möjligheter"],
+    "actions": ["konkreta åtgärder eller initiativ som nämns"],
+    "deadlines": ["viktiga tidpunkter eller deadlines"]
+  },
+  
+  "sentiment_analysis": {
+    "overall_tone": "övergripande ton (t.ex. positiv, neutral, problematisk)",
+    "confidence_level": "nivå av säkerhet/osäkerhet i texten",
+    "focus": "problem-fokuserad eller lösnings-fokuserad"
+  },
+  
+  "keywords": ["15-20 viktiga nyckelord och begrepp"],
+  
   "extracted_data": {
-    "dates": [],
-    "amounts": [],
-    "people": [],
-    "organizations": [],
-    "other": {}
+    "dates": ["viktiga datum"],
+    "amounts": ["ekonomiska belopp med kontext"],
+    "people": ["personer som nämns"],
+    "organizations": ["organisationer som nämns"],
+    "locations": ["platser som nämns"]
   }
 }`;
 
@@ -105,7 +136,7 @@ Svara i JSON-format med följande struktur:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',

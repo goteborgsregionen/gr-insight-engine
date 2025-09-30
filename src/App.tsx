@@ -12,6 +12,7 @@ import DocumentUpload from "./pages/DocumentUpload";
 import Reports from "./pages/Reports";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+import Analysis from "./pages/Analysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,10 @@ const App = () => {
             <Route
               path="/reports"
               element={session ? <Reports /> : <Navigate to="/" />}
+            />
+            <Route
+              path="/analysis"
+              element={session ? <Analysis /> : <Navigate to="/" />}
             />
             <Route
               path="/chat"
