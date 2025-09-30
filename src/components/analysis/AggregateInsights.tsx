@@ -87,13 +87,34 @@ export function AggregateInsights() {
               <AlertCircle className="h-4 w-4" />
               Förbättringsområden
             </h3>
-            <div className="space-y-2">
-              {insightsData.improvement_areas.map((area: string, idx: number) => (
-                <div key={idx} className="flex items-start gap-2 text-sm">
-                  <Badge variant="secondary" className="mt-0.5">{idx + 1}</Badge>
-                  <p className="text-muted-foreground">{area}</p>
-                </div>
-              ))}
+            <div className="space-y-3">
+              {insightsData.improvement_areas.map((item: any, idx: number) => {
+                if (typeof item === 'string') {
+                  return (
+                    <div key={idx} className="flex items-start gap-2 text-sm">
+                      <Badge variant="secondary" className="mt-0.5">{idx + 1}</Badge>
+                      <p className="text-muted-foreground">{item}</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={idx} className="p-3 rounded-lg bg-muted/50 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{idx + 1}</Badge>
+                      {item.area && <span className="font-medium text-sm">{item.area}</span>}
+                    </div>
+                    {item.current_state && (
+                      <p className="text-xs text-muted-foreground">Nuläge: {item.current_state}</p>
+                    )}
+                    {item.gaps && (
+                      <p className="text-xs text-muted-foreground">Luckor: {item.gaps}</p>
+                    )}
+                    {item.impact && (
+                      <p className="text-xs text-muted-foreground">Påverkan: {item.impact}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -173,13 +194,31 @@ export function AggregateInsights() {
                 <AlertCircle className="h-4 w-4 text-destructive" />
                 Avvikelser
               </h3>
-              <div className="space-y-2">
-                {insightsData.anomalies.map((anomaly: string, idx: number) => (
-                  <div key={idx} className="flex items-start gap-2 text-sm">
-                    <Badge variant="destructive" className="mt-0.5">!</Badge>
-                    <p className="text-muted-foreground">{anomaly}</p>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {insightsData.anomalies.map((item: any, idx: number) => {
+                  if (typeof item === 'string') {
+                    return (
+                      <div key={idx} className="flex items-start gap-2 text-sm">
+                        <Badge variant="destructive" className="mt-0.5">!</Badge>
+                        <p className="text-muted-foreground">{item}</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={idx} className="p-3 rounded-lg bg-destructive/10 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="destructive">!</Badge>
+                        {item.anomaly && <span className="font-medium text-sm">{item.anomaly}</span>}
+                      </div>
+                      {item.location && (
+                        <p className="text-xs text-muted-foreground">Plats: {item.location}</p>
+                      )}
+                      {item.significance && (
+                        <p className="text-xs text-muted-foreground">Betydelse: {item.significance}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>
