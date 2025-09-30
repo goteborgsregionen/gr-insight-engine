@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Download, Trash2, FileIcon } from "lucide-react";
-import { formatFileSize, formatDate, getFileIcon, getFileTypeLabel } from "@/lib/format";
+import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { sv } from "date-fns/locale";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,14 +18,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { formatFileSize } from "@/lib/format";
+import { groupByDocumentFamily, Document } from "@/lib/documents";
+import { VersionBadge } from "./VersionBadge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-type Document = Tables<"documents">;
-
-export const DocumentList = () => {
+export function DocumentList() {
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ["documents"],
@@ -40,37 +42,67 @@ export const DocumentList = () => {
     },
   });
 
-  const downloadMutation = useMutation({
-    mutationFn: async (document: Document) => {
+  const documentGroups = documents ? groupByDocumentFamily(documents) : [];
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  const downloadDocument = useMutation({
+    mutationFn: async (documentId: string) => {
+      const { data: doc, error: docError } = await supabase
+        .from("documents")
+        .select("file_path, file_name")
+        .eq("id", documentId)
+        .single();
+
+      if (docError || !doc) throw new Error("Dokumentet hittades inte");
+
       const { data, error } = await supabase.storage
         .from("documents")
-        .download(document.file_path);
+        .download(doc.file_path);
 
       if (error) throw error;
 
       const url = URL.createObjectURL(data);
-      const a = window.document.createElement("a");
+      const a = document.createElement("a");
       a.href = url;
-      a.download = document.file_name;
-      window.document.body.appendChild(a);
+      a.download = doc.file_name;
+      document.body.appendChild(a);
       a.click();
-      window.document.body.removeChild(a);
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     },
     onSuccess: () => {
       toast.success("Dokument nedladdat!");
     },
-    onError: (error) => {
-      toast.error(`Kunde inte ladda ner dokument: ${error.message}`);
+    onError: (error: any) => {
+      toast.error(`Kunde inte ladda ner dokument: ${error?.message || "Okänt fel"}`);
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (document: Document) => {
+  const deleteDocument = useMutation({
+    mutationFn: async (documentId: string) => {
+      const { data: doc, error: docError } = await supabase
+        .from("documents")
+        .select("file_path")
+        .eq("id", documentId)
+        .single();
+
+      if (docError || !doc) throw new Error("Dokumentet hittades inte");
+
       // Delete from storage
       const { error: storageError } = await supabase.storage
         .from("documents")
-        .remove([document.file_path]);
+        .remove([doc.file_path]);
 
       if (storageError) throw storageError;
 
@@ -78,7 +110,7 @@ export const DocumentList = () => {
       const { error: dbError } = await supabase
         .from("documents")
         .delete()
-        .eq("id", document.id);
+        .eq("id", documentId);
 
       if (dbError) throw dbError;
     },
@@ -89,40 +121,24 @@ export const DocumentList = () => {
       setDeleteDialogOpen(false);
       setDocumentToDelete(null);
     },
-    onError: (error) => {
-      toast.error(`Kunde inte radera dokument: ${error.message}`);
+    onError: (error: any) => {
+      toast.error(`Kunde inte radera dokument: ${error?.message || "Okänt fel"}`);
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
     },
   });
 
-  const handleDeleteClick = (document: Document) => {
-    setDocumentToDelete(document);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = () => {
-    if (documentToDelete) {
-      deleteMutation.mutate(documentToDelete);
-    }
+  const getFileIcon = (fileType: string) => {
+    if (fileType.includes("pdf")) return FileText;
+    if (fileType.includes("spreadsheet") || fileType.includes("excel")) return Table;
+    return FileIcon;
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1">
-                  <Skeleton className="h-12 w-12 rounded" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                </div>
-                <Skeleton className="h-9 w-24" />
-              </div>
-            </CardContent>
-          </Card>
+          <Skeleton key={i} className="h-32 w-full" />
         ))}
       </div>
     );
@@ -131,83 +147,107 @@ export const DocumentList = () => {
   if (!documents || documents.length === 0) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-center justify-center py-16">
-          <FileIcon className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Inga dokument ännu</h3>
-          <p className="text-muted-foreground">
-            Börja med att ladda upp ditt första dokument
-          </p>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">Inga dokument uppladdade än</p>
         </CardContent>
       </Card>
     );
   }
 
+  const renderDocument = (doc: Document, isLatest: boolean = true) => {
+    return (
+      <Card key={doc.id} className={!isLatest ? "ml-8" : ""}>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                {getFileIcon(doc.file_type)({
+                  className: "h-6 w-6 text-primary",
+                })}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">{doc.title}</CardTitle>
+                  <VersionBadge version={doc.version_number} isLatest={doc.is_latest_version} />
+                </div>
+                <CardDescription className="mt-1">
+                  {doc.file_type.split("/")[1]?.toUpperCase() || "UNKNOWN"} •{" "}
+                  {formatFileSize(doc.file_size)} •{" "}
+                  {formatDistanceToNow(new Date(doc.uploaded_at), {
+                    addSuffix: true,
+                    locale: sv,
+                  })}
+                </CardDescription>
+                {doc.version_notes && (
+                  <p className="text-sm text-muted-foreground mt-2 italic">
+                    {doc.version_notes}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadDocument.mutate(doc.id)}
+                disabled={downloadDocument.isPending}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDocumentToDelete(doc.id);
+                  setDeleteDialogOpen(true);
+                }}
+                disabled={deleteDocument.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  };
+
   return (
     <>
-      <div className="space-y-3">
-        {documents.map((document) => {
-          const Icon = getFileIcon(document.file_type);
+      <div className="grid gap-4">
+        {documentGroups.map((group) => {
+          const groupId = group.latestVersion.parent_document_id || group.latestVersion.id;
+          const isExpanded = expandedGroups.has(groupId);
+          const hasOlderVersions = group.olderVersions.length > 0;
+
           return (
-            <Card key={document.id}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
-                      <Icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-medium truncate">{document.title}</h3>
-                        <Badge variant="secondary" className="shrink-0">
-                          {getFileTypeLabel(document.file_type)}
-                        </Badge>
-                        {document.status && (
-                          <Badge
-                            variant={
-                              document.status === "analyzed"
-                                ? "default"
-                                : document.status === "error"
-                                ? "destructive"
-                                : "outline"
-                            }
-                            className="shrink-0"
-                          >
-                            {document.status === "uploaded" && "Uppladdad"}
-                            {document.status === "analyzing" && "Analyserar"}
-                            {document.status === "analyzed" && "Analyserad"}
-                            {document.status === "error" && "Fel"}
-                          </Badge>
+            <div key={groupId} className="space-y-2">
+              <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(groupId)}>
+                <div className="relative">
+                  {renderDocument(group.latestVersion, true)}
+                  {hasOlderVersions && (
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute bottom-4 right-4"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 mr-2" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 mr-2" />
                         )}
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <span>{formatFileSize(document.file_size || 0)}</span>
-                        <span>•</span>
-                        <span>{formatDate(document.uploaded_at || "")}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadMutation.mutate(document)}
-                      disabled={downloadMutation.isPending}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Ladda ner
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteClick(document)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                        {group.totalVersions} {group.totalVersions === 1 ? "version" : "versioner"}
+                      </Button>
+                    </CollapsibleTrigger>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+                <CollapsibleContent className="space-y-2">
+                  {group.olderVersions.map((olderDoc) => renderDocument(olderDoc, false))}
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           );
         })}
       </div>
@@ -217,16 +257,23 @@ export const DocumentList = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Radera dokument?</AlertDialogTitle>
             <AlertDialogDescription>
-              Är du säker på att du vill radera "{documentToDelete?.title}"? Detta går inte att
-              ångra.
+              Är du säker på att du vill radera detta dokument? Detta går inte att ångra.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete}>Radera</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (documentToDelete) {
+                  deleteDocument.mutate(documentToDelete);
+                }
+              }}
+            >
+              Radera
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
   );
-};
+}

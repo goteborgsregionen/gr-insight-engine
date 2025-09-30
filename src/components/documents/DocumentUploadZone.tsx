@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import { checkForDuplicate, createNewVersion } from "@/lib/documents";
+import { ReplaceFileDialog } from "./ReplaceFileDialog";
 
 // Sanitize filename for storage (remove special characters, Swedish chars)
 const sanitizeFilename = (filename: string): string => {
@@ -46,97 +48,171 @@ interface DocumentUploadZoneProps {
   onUploadComplete: () => void;
 }
 
-export const DocumentUploadZone = ({ onUploadComplete }: DocumentUploadZoneProps) => {
+export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadFile[]>([]);
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  const [replaceDialog, setReplaceDialog] = useState<{
+    open: boolean;
+    file: File;
+    existingDoc: any;
+  } | null>(null);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!user) {
-      toast.error("Du måste vara inloggad för att ladda upp dokument");
-      return;
-    }
+  const handleReplaceConfirm = async (versionNotes: string) => {
+    if (!replaceDialog || !user) return;
 
-    const newFiles: UploadFile[] = acceptedFiles.map((file) => ({
-      file,
-      progress: 0,
-      id: Math.random().toString(36),
-    }));
+    const { file, existingDoc } = replaceDialog;
+    
+    try {
+      const timestamp = Date.now();
+      const sanitizedName = sanitizeFilename(file.name);
+      const filePath = `${user.id}/${timestamp}_${sanitizedName}`;
 
-    setUploadingFiles((prev) => [...prev, ...newFiles]);
+      // Upload new file to storage
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, file);
 
-    for (const uploadFile of newFiles) {
-      try {
-        // Generate unique file path with sanitized filename
-        const timestamp = Date.now();
-        const sanitizedName = sanitizeFilename(uploadFile.file.name);
-        const filePath = `${user.id}/${timestamp}_${sanitizedName}`;
+      if (uploadError) throw uploadError;
 
-        // Update progress to show upload started
-        setUploadingFiles((prev) =>
-          prev.map((f) =>
-            f.id === uploadFile.id ? { ...f, progress: 50 } : f
-          )
-        );
+      // Create new version in database
+      await createNewVersion(existingDoc.id, file, filePath, versionNotes);
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
-          .from("documents")
-          .upload(filePath, uploadFile.file);
+      await queryClient.invalidateQueries({ queryKey: ["documents"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
 
-        if (uploadError) throw uploadError;
-
-        // Save metadata to database
-        const { error: dbError } = await supabase.from("documents").insert({
-          title: uploadFile.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-          file_name: uploadFile.file.name,
-          file_type: uploadFile.file.type,
-          file_size: uploadFile.file.size,
-          file_path: filePath,
-          uploaded_by: user.id,
-          status: "uploaded",
-        });
-
-        if (dbError) throw dbError;
-
-        // Update progress to completed
-        setUploadingFiles((prev) =>
-          prev.map((f) =>
-            f.id === uploadFile.id ? { ...f, progress: 100 } : f
-          )
-        );
-
-        toast.success(`${uploadFile.file.name} uppladdad!`);
-      } catch (error: any) {
-        console.error("Upload error:", error);
-        const errorMessage = error?.message || "Okänt fel";
-        toast.error(`Kunde inte ladda upp ${uploadFile.file.name}: ${errorMessage}`);
-        setUploadingFiles((prev) => prev.filter((f) => f.id !== uploadFile.id));
-      }
-    }
-
-    // Clear completed uploads and refresh list
-    setTimeout(() => {
-      setUploadingFiles([]);
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      toast.success(`${file.name} ersatt med ny version!`);
+      setReplaceDialog(null);
       onUploadComplete();
-    }, 1000);
-  }, [user, onUploadComplete, queryClient]);
+    } catch (error: any) {
+      console.error("Replace error:", error);
+      toast.error(`Kunde inte ersätta fil: ${error?.message || "Okänt fel"}`);
+      setReplaceDialog(null);
+    }
+  };
+
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      if (!user) {
+        toast.error("Du måste vara inloggad för att ladda upp filer");
+        return;
+      }
+
+      // Check for duplicates first
+      const fileChecks = await Promise.all(
+        acceptedFiles.map(async (file) => {
+          const existingDoc = await checkForDuplicate(file.name, file.size, user.id);
+          return { file, existingDoc };
+        })
+      );
+
+      // Handle duplicates - show dialog for first duplicate
+      const duplicate = fileChecks.find((check) => check.existingDoc);
+      if (duplicate) {
+        setReplaceDialog({
+          open: true,
+          file: duplicate.file,
+          existingDoc: duplicate.existingDoc,
+        });
+        
+        // Show warnings for other duplicates
+        fileChecks
+          .filter((check) => check.existingDoc && check !== duplicate)
+          .forEach(({ file }) => {
+            toast.warning(`${file.name} finns redan uppladdad`);
+          });
+        
+        return;
+      }
+
+      // No duplicates - proceed with upload
+      const newFiles = acceptedFiles.map((file) => ({
+        id: Math.random().toString(),
+        file,
+        progress: 0,
+      }));
+
+      setUploadingFiles((prev) => [...prev, ...newFiles]);
+
+      for (const uploadFile of newFiles) {
+        try {
+          // Generate unique file path with sanitized filename
+          const timestamp = Date.now();
+          const sanitizedName = sanitizeFilename(uploadFile.file.name);
+          const filePath = `${user.id}/${timestamp}_${sanitizedName}`;
+
+          // Update progress to show upload started
+          setUploadingFiles((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id ? { ...f, progress: 50 } : f
+            )
+          );
+
+          // Upload to Supabase Storage
+          const { error: uploadError } = await supabase.storage
+            .from("documents")
+            .upload(filePath, uploadFile.file);
+
+          if (uploadError) throw uploadError;
+
+          // Save metadata to database
+          const { error: dbError } = await supabase.from("documents").insert({
+            title: uploadFile.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+            file_name: uploadFile.file.name,
+            file_type: uploadFile.file.type,
+            file_size: uploadFile.file.size,
+            file_path: filePath,
+            uploaded_by: user.id,
+            status: "uploaded",
+            version_number: 1,
+            is_latest_version: true,
+          });
+
+          if (dbError) throw dbError;
+
+          // Update progress to completed
+          setUploadingFiles((prev) =>
+            prev.map((f) =>
+              f.id === uploadFile.id ? { ...f, progress: 100 } : f
+            )
+          );
+
+          toast.success(`${uploadFile.file.name} uppladdad!`);
+        } catch (error: any) {
+          console.error("Upload error:", error);
+          const errorMessage = error?.message || "Okänt fel";
+          toast.error(`Kunde inte ladda upp ${uploadFile.file.name}: ${errorMessage}`);
+          setUploadingFiles((prev) => prev.filter((f) => f.id !== uploadFile.id));
+        }
+      }
+
+      // Clear completed uploads and refresh list
+      setTimeout(() => {
+        setUploadingFiles([]);
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+        onUploadComplete();
+      }, 1000);
+    },
+    [user, queryClient, onUploadComplete],
+  );
+
+  const onDropRejected = useCallback((rejections: any[]) => {
+    rejections.forEach((rejection) => {
+      if (rejection.file.size > MAX_SIZE) {
+        toast.error(`${rejection.file.name} är för stor. Max 20MB.`);
+      } else {
+        toast.error(`${rejection.file.name} har fel filtyp. Endast PDF, DOCX, XLSX.`);
+      }
+    });
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: ACCEPTED_TYPES,
     maxSize: MAX_SIZE,
-    onDropRejected: (rejections) => {
-      rejections.forEach((rejection) => {
-        if (rejection.file.size > MAX_SIZE) {
-          toast.error(`${rejection.file.name} är för stor. Max 20MB.`);
-        } else {
-          toast.error(`${rejection.file.name} har fel filtyp. Endast PDF, DOCX, XLSX.`);
-        }
-      });
-    },
+    onDropRejected,
   });
 
   const removeFile = (id: string) => {
@@ -199,6 +275,16 @@ export const DocumentUploadZone = ({ onUploadComplete }: DocumentUploadZoneProps
           ))}
         </div>
       )}
+
+      {replaceDialog && (
+        <ReplaceFileDialog
+          open={replaceDialog.open}
+          onOpenChange={(open) => !open && setReplaceDialog(null)}
+          fileName={replaceDialog.file.name}
+          existingVersion={replaceDialog.existingDoc.version_number}
+          onConfirm={handleReplaceConfirm}
+        />
+      )}
     </div>
   );
-};
+}

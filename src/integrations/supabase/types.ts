@@ -56,11 +56,15 @@ export type Database = {
           file_size: number | null
           file_type: string
           id: string
+          is_latest_version: boolean
           metadata: Json | null
+          parent_document_id: string | null
           status: string | null
           title: string
           uploaded_at: string | null
           uploaded_by: string | null
+          version_notes: string | null
+          version_number: number
         }
         Insert: {
           file_name: string
@@ -68,11 +72,15 @@ export type Database = {
           file_size?: number | null
           file_type: string
           id?: string
+          is_latest_version?: boolean
           metadata?: Json | null
+          parent_document_id?: string | null
           status?: string | null
           title: string
           uploaded_at?: string | null
           uploaded_by?: string | null
+          version_notes?: string | null
+          version_number?: number
         }
         Update: {
           file_name?: string
@@ -80,13 +88,25 @@ export type Database = {
           file_size?: number | null
           file_type?: string
           id?: string
+          is_latest_version?: boolean
           metadata?: Json | null
+          parent_document_id?: string | null
           status?: string | null
           title?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
+          version_notes?: string | null
+          version_number?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "documents_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
