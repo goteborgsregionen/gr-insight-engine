@@ -10,6 +10,8 @@ import { Loader2, TrendingUp, GitCompare, FileSearch } from "lucide-react";
 import { ComparisonResults } from "@/components/analysis/ComparisonResults";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
 import { AggregateInsights } from "@/components/analysis/AggregateInsights";
+import { AnalysisProgress } from "@/components/analysis/AnalysisProgress";
+import { AnalysisNotifications } from "@/components/analysis/AnalysisNotifications";
 
 export default function Analysis() {
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
@@ -135,6 +137,7 @@ export default function Analysis() {
 
   return (
     <MainLayout>
+      <AnalysisNotifications />
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold mb-2">Analys</h1>
@@ -148,6 +151,10 @@ export default function Analysis() {
             queryClient.invalidateQueries({ queryKey: ["all-documents"] });
           }}
         />
+
+        {selectedDocs.length > 0 && (
+          <AnalysisProgress documentIds={selectedDocs} />
+        )}
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>

@@ -35,6 +35,13 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const startTime = Date.now();
+
+    // Update status to analyzing
+    await supabase
+      .from('documents')
+      .update({ status: 'analyzing' })
+      .eq('id', documentId);
 
     // Fetch document metadata
     const { data: document, error: docError } = await supabase
@@ -45,6 +52,10 @@ serve(async (req) => {
 
     if (docError || !document) {
       console.error('Document not found:', docError);
+      await supabase
+        .from('documents')
+        .update({ status: 'error' })
+        .eq('id', documentId);
       return new Response(
         JSON.stringify({ error: 'Document not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -60,75 +71,115 @@ serve(async (req) => {
 
     if (downloadError || !fileData) {
       console.error('Failed to download document:', downloadError);
+      await supabase
+        .from('documents')
+        .update({ status: 'error' })
+        .eq('id', documentId);
       return new Response(
         JSON.stringify({ error: 'Failed to download document' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Read file content as text
+    // Read file content and calculate hash
     const fileContent = await fileData.text();
-    console.log('File content length:', fileContent.length);
+    const encoder = new TextEncoder();
+    const data = encoder.encode(fileContent);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Enhanced prompt for deeper analysis
-    const analysisPrompt = `Analysera detta GR-dokument med fokus på affärsinsikter och strategisk information.
+    console.log('File content length:', fileContent.length, 'Hash:', contentHash);
+
+    // Check if we already have a valid analysis for this content
+    const { data: existingAnalysis } = await supabase
+      .from('analysis_results')
+      .select('*')
+      .eq('document_id', documentId)
+      .eq('is_valid', true)
+      .maybeSingle();
+
+    if (existingAnalysis && document.content_hash === contentHash) {
+      console.log('Using cached analysis');
+      await supabase
+        .from('documents')
+        .update({ status: 'analyzed' })
+        .eq('id', documentId);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          analysis: existingAnalysis,
+          cached: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Invalidate old analyses if content changed
+    if (document.content_hash && document.content_hash !== contentHash) {
+      await supabase
+        .from('analysis_results')
+        .update({ is_valid: false })
+        .eq('document_id', documentId);
+    }
+
+    // Update content hash
+    await supabase
+      .from('documents')
+      .update({ content_hash: contentHash })
+      .eq('id', documentId);
+
+    // Enhanced prompt with reduced length
+    const analysisPrompt = `Analysera detta dokument fokuserat och koncist.
 
 Dokumenttyp: ${document.file_type}
 Dokumentnamn: ${document.file_name}
 
-Innehåll:
-${fileContent.substring(0, 50000)}
+Innehåll (första 30000 tecken):
+${fileContent.substring(0, 30000)}
 
-Utför en djupanalys och extrahera följande strukturerade information i JSON-format:
+Returnera strukturerad JSON:
 
 {
-  "summary": "En koncis sammanfattning av dokumentets huvudsakliga innehåll och syfte (max 300 ord)",
-  
+  "summary": "Koncis sammanfattning (max 200 ord)",
   "document_metadata": {
-    "document_type": "typ av dokument (t.ex. årsredovisning, strategi, policy, rapport)",
-    "time_period": "tidsperiod som dokumentet avser",
-    "key_actors": ["huvudaktörer, organisationer eller personer som nämns"],
-    "geographical_scope": ["geografiska områden som täcks"]
+    "document_type": "typ",
+    "time_period": "period",
+    "key_actors": ["aktörer"],
+    "geographical_scope": ["områden"]
   },
-  
   "themes": {
-    "main_themes": ["3-5 huvudteman i dokumentet"],
-    "priorities": ["identifierade prioriteringar"],
-    "strengths": ["starka punkter eller styrkor som lyfts fram"],
-    "challenges": ["utmaningar eller problem som identifieras"]
+    "main_themes": ["3-5 huvudteman"],
+    "priorities": ["prioriteringar"],
+    "strengths": ["styrkor"],
+    "challenges": ["utmaningar"]
   },
-  
   "business_intelligence": {
-    "economic_kpis": [
-      {"metric": "namn på nyckeltal", "value": "värde", "context": "sammanhang"}
-    ],
-    "goals": ["identifierade mål och målsättningar"],
-    "risks": ["identifierade risker"],
-    "opportunities": ["identifierade möjligheter"],
-    "actions": ["konkreta åtgärder eller initiativ som nämns"],
-    "deadlines": ["viktiga tidpunkter eller deadlines"]
+    "economic_kpis": [{"metric": "namn", "value": "värde", "context": "kontext"}],
+    "goals": ["mål"],
+    "risks": ["risker"],
+    "opportunities": ["möjligheter"],
+    "actions": ["åtgärder"],
+    "deadlines": ["deadlines"]
   },
-  
   "sentiment_analysis": {
-    "overall_tone": "övergripande ton (t.ex. positiv, neutral, problematisk)",
-    "confidence_level": "nivå av säkerhet/osäkerhet i texten",
-    "focus": "problem-fokuserad eller lösnings-fokuserad"
+    "overall_tone": "ton",
+    "confidence_level": "säkerhetsnivå",
+    "focus": "fokus"
   },
-  
-  "keywords": ["15-20 viktiga nyckelord och begrepp"],
-  
+  "keywords": ["10-15 nyckelord"],
   "extracted_data": {
-    "dates": ["viktiga datum"],
-    "amounts": ["ekonomiska belopp med kontext"],
-    "people": ["personer som nämns"],
-    "organizations": ["organisationer som nämns"],
-    "locations": ["platser som nämns"]
+    "dates": ["datum"],
+    "amounts": ["belopp"],
+    "people": ["personer"],
+    "organizations": ["organisationer"],
+    "locations": ["platser"]
   }
 }`;
 
-    console.log('Sending request to Lovable AI...');
+    console.log('Sending request to Lovable AI (gemini-2.5-flash)...');
 
-    // Call Lovable AI
+    // Call Lovable AI with faster model
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -136,24 +187,29 @@ Utför en djupanalys och extrahera följande strukturerade information i JSON-fo
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
-            content: 'Du är en dokumentanalysassistent som extraherar strukturerad information från dokument. Svara alltid i JSON-format.'
+            content: 'Du är en dokumentanalysassistent. Svara alltid i JSON-format, koncist och strukturerat.'
           },
           {
             role: 'user',
             content: analysisPrompt
           }
         ],
-        temperature: 0.3,
+        temperature: 0.2,
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error('AI API error:', aiResponse.status, errorText);
+      
+      await supabase
+        .from('documents')
+        .update({ status: 'error' })
+        .eq('id', documentId);
       
       if (aiResponse.status === 429) {
         return new Response(
@@ -181,7 +237,6 @@ Utför en djupanalys och extrahera följande strukturerade information i JSON-fo
     let analysisResult;
     try {
       const contentText = aiData.choices[0].message.content;
-      // Try to extract JSON from the response (sometimes AI wraps it in markdown)
       const jsonMatch = contentText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         analysisResult = JSON.parse(jsonMatch[0]);
@@ -190,7 +245,6 @@ Utför en djupanalys och extrahera följande strukturerade information i JSON-fo
       }
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
-      // Fallback: create a basic analysis result
       analysisResult = {
         summary: aiData.choices[0].message.content,
         keywords: [],
@@ -198,9 +252,10 @@ Utför en djupanalys och extrahera följande strukturerade information i JSON-fo
       };
     }
 
-    console.log('Saving analysis result to database...');
+    const processingTime = Date.now() - startTime;
+    console.log('Analysis took:', processingTime, 'ms');
 
-    // Save analysis result to database
+    // Save analysis result with processing time
     const { data: savedResult, error: saveError } = await supabase
       .from('analysis_results')
       .insert({
@@ -208,24 +263,37 @@ Utför en djupanalys och extrahera följande strukturerade information i JSON-fo
         summary: analysisResult.summary,
         keywords: analysisResult.keywords || [],
         extracted_data: analysisResult.extracted_data || {},
+        is_valid: true,
+        processing_time: processingTime,
       })
       .select()
       .single();
 
     if (saveError) {
       console.error('Failed to save analysis:', saveError);
+      await supabase
+        .from('documents')
+        .update({ status: 'error' })
+        .eq('id', documentId);
       return new Response(
         JSON.stringify({ error: 'Failed to save analysis' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Update document status to analyzed
+    await supabase
+      .from('documents')
+      .update({ status: 'analyzed' })
+      .eq('id', documentId);
+
     console.log('Analysis complete:', savedResult.id);
 
     return new Response(
       JSON.stringify({
         success: true,
-        analysis: savedResult
+        analysis: savedResult,
+        processing_time: processingTime
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

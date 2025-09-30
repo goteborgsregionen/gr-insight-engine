@@ -44,13 +44,59 @@ export type Database = {
         }
         Relationships: []
       }
+      analysis_queue: {
+        Row: {
+          attempts: number | null
+          created_at: string
+          document_id: string
+          error_message: string | null
+          id: string
+          priority: number | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string
+          document_id: string
+          error_message?: string | null
+          id?: string
+          priority?: number | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string
+          document_id?: string
+          error_message?: string | null
+          id?: string
+          priority?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analysis_queue_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analysis_results: {
         Row: {
           analyzed_at: string | null
           document_id: string | null
           extracted_data: Json | null
           id: string
+          is_valid: boolean | null
           keywords: string[] | null
+          processing_time: number | null
           summary: string | null
         }
         Insert: {
@@ -58,7 +104,9 @@ export type Database = {
           document_id?: string | null
           extracted_data?: Json | null
           id?: string
+          is_valid?: boolean | null
           keywords?: string[] | null
+          processing_time?: number | null
           summary?: string | null
         }
         Update: {
@@ -66,7 +114,9 @@ export type Database = {
           document_id?: string | null
           extracted_data?: Json | null
           id?: string
+          is_valid?: boolean | null
           keywords?: string[] | null
+          processing_time?: number | null
           summary?: string | null
         }
         Relationships: [
@@ -105,6 +155,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          content_hash: string | null
           file_name: string
           file_path: string
           file_size: number | null
@@ -121,6 +172,7 @@ export type Database = {
           version_number: number
         }
         Insert: {
+          content_hash?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
@@ -137,6 +189,7 @@ export type Database = {
           version_number?: number
         }
         Update: {
+          content_hash?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null

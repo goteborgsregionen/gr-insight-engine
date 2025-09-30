@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.generate-insights]
 verify_jwt = true
+
+[functions.process-analysis-queue]
+verify_jwt = false

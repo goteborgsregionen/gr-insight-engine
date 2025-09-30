@@ -157,7 +157,7 @@ export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps
           if (uploadError) throw uploadError;
 
           // Save metadata to database
-          const { error: dbError } = await supabase.from("documents").insert({
+          const { data: insertedDoc, error: dbError } = await supabase.from("documents").insert({
             title: uploadFile.file.name.replace(/\.[^/.]+$/, ""), // Remove extension
             file_name: uploadFile.file.name,
             file_type: uploadFile.file.type,
@@ -167,9 +167,20 @@ export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps
             status: "uploaded",
             version_number: 1,
             is_latest_version: true,
-          });
+          }).select().single();
 
           if (dbError) throw dbError;
+
+          // Trigger auto-analysis in background
+          if (insertedDoc) {
+            supabase.functions.invoke('analyze-document', {
+              body: { documentId: insertedDoc.id }
+            }).then(() => {
+              console.log(`Analysis started for document ${insertedDoc.id}`);
+            }).catch((err) => {
+              console.error('Failed to trigger analysis:', err);
+            });
+          }
 
           // Update progress to completed
           setUploadingFiles((prev) =>

@@ -6,6 +6,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const BATCH_SIZE = 5; // Analyze max 5 documents in parallel
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 2000;
+
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function analyzeDocumentWithRetry(
+  supabase: any,
+  docId: string,
+  attempt = 0
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(`Analyzing document ${docId} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+    
+    const analyzeResponse = await supabase.functions.invoke('analyze-document', {
+      body: { documentId: docId },
+    });
+    
+    if (analyzeResponse.error) {
+      throw analyzeResponse.error;
+    }
+    
+    console.log(`Document ${docId} analyzed successfully`);
+    return { success: true };
+  } catch (error) {
+    console.error(`Failed to analyze document ${docId} (attempt ${attempt + 1}):`, error);
+    
+    if (attempt < MAX_RETRIES) {
+      await sleep(RETRY_DELAY * (attempt + 1)); // Exponential backoff
+      return analyzeDocumentWithRetry(supabase, docId, attempt + 1);
+    }
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return { success: false, error: errorMessage };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -49,35 +88,42 @@ serve(async (req) => {
     const { data: existingAnalyses } = await supabase
       .from('analysis_results')
       .select('document_id')
-      .in('document_id', documentIds);
+      .in('document_id', documentIds)
+      .eq('is_valid', true);
     
     const analyzedDocIds = new Set(existingAnalyses?.map((a: any) => a.document_id) || []);
     const unanalyzedDocIds = documentIds.filter((id: string) => !analyzedDocIds.has(id));
 
-    // Analyze unanalyzed documents first
+    // Analyze unanalyzed documents in batches
     if (unanalyzedDocIds.length > 0) {
-      console.log(`Analyzing ${unanalyzedDocIds.length} unanalyzed documents first...`);
+      console.log(`Analyzing ${unanalyzedDocIds.length} unanalyzed documents in batches of ${BATCH_SIZE}...`);
       
-      for (const docId of unanalyzedDocIds) {
-        try {
-          const analyzeResponse = await supabase.functions.invoke('analyze-document', {
-            body: { documentId: docId },
-          });
-          
-          if (analyzeResponse.error) {
-            console.error(`Failed to analyze document ${docId}:`, analyzeResponse.error);
-            return new Response(
-              JSON.stringify({ error: `Failed to analyze document ${docId}` }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          console.log(`Document ${docId} analyzed successfully`);
-        } catch (analyzeError) {
-          console.error(`Error analyzing document ${docId}:`, analyzeError);
+      const batches = [];
+      for (let i = 0; i < unanalyzedDocIds.length; i += BATCH_SIZE) {
+        batches.push(unanalyzedDocIds.slice(i, i + BATCH_SIZE));
+      }
+      
+      for (const [batchIndex, batch] of batches.entries()) {
+        console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} documents)`);
+        
+        const results = await Promise.allSettled(
+          batch.map(docId => analyzeDocumentWithRetry(supabase, docId))
+        );
+        
+        const failed = results.filter(r => r.status === 'rejected' || !r.value.success);
+        if (failed.length > 0) {
+          console.error(`${failed.length} documents failed to analyze in batch ${batchIndex + 1}`);
           return new Response(
-            JSON.stringify({ error: `Error analyzing document ${docId}` }),
+            JSON.stringify({ 
+              error: `Failed to analyze ${failed.length} documents. Please try again with fewer documents.` 
+            }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+        }
+        
+        // Add delay between batches to avoid rate limiting
+        if (batchIndex < batches.length - 1) {
+          await sleep(1000);
         }
       }
     }
@@ -94,7 +140,8 @@ serve(async (req) => {
         analyzed_at,
         documents!inner(file_name, file_type, uploaded_at)
       `)
-      .in('document_id', documentIds);
+      .in('document_id', documentIds)
+      .eq('is_valid', true);
 
     if (analysisError) {
       console.error('Failed to fetch analyses:', analysisError);
@@ -106,115 +153,97 @@ serve(async (req) => {
 
     if (!analyses || analyses.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'No analyses found for the specified documents' }),
+        JSON.stringify({ error: 'No valid analyses found for the specified documents' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`Found ${analyses.length} analyses to compare`);
 
-    // Prepare comparison prompt
-    const comparisonPrompt = `Jämför följande ${analyses.length} dokument och ge en djupgående komparativ analys.
+    // Prepare optimized comparison prompt
+    const comparisonPrompt = `Jämför ${analyses.length} dokument. Ge koncis komparativ analys.
 
-DOKUMENT ATT JÄMFÖRA:
+DOKUMENT:
 ${analyses.map((a: any, idx: number) => `
-DOKUMENT ${idx + 1}: ${a.documents.file_name}
-Typ: ${a.documents.file_type}
-Uppladdad: ${a.documents.uploaded_at}
+${idx + 1}. ${a.documents.file_name}
+Sammanfattning: ${a.summary.substring(0, 500)}
+Nyckelord: ${a.keywords?.slice(0, 10).join(', ') || 'Inga'}
+`).join('\n')}
 
-Sammanfattning: ${a.summary}
-Nyckelord: ${a.keywords?.join(', ') || 'Inga'}
-Strukturerad data: ${JSON.stringify(a.extracted_data, null, 2)}
-`).join('\n---\n')}
-
-Utför en komparativ analys och returnera följande i JSON-format:
+Returnera JSON:
 
 {
-  "comparison_summary": "En övergripande sammanfattning av jämförelsen (200-300 ord)",
-  
+  "comparison_summary": "Övergripande jämförelse (150-200 ord)",
   "commonalities": {
-    "shared_themes": ["teman som förekommer i flera/alla dokument"],
-    "shared_keywords": ["nyckelord som är gemensamma"],
-    "shared_actors": ["aktörer som nämns i flera dokument"],
-    "consistent_priorities": ["prioriteringar som är konsekventa"]
+    "shared_themes": ["gemensamma teman"],
+    "shared_keywords": ["gemensamma nyckelord"],
+    "shared_actors": ["gemensamma aktörer"],
+    "consistent_priorities": ["konsekventa prioriteringar"]
   },
-  
   "differences": {
-    "unique_themes": [
-      {"document": "dokumentnamn", "themes": ["unika teman"]}
-    ],
-    "diverging_priorities": ["områden där dokumenten har olika prioriteringar"],
-    "conflicting_information": ["eventuella motsägelser mellan dokumenten"]
+    "unique_themes": [{"document": "namn", "themes": ["unika teman"]}],
+    "diverging_priorities": ["skilda prioriteringar"],
+    "conflicting_information": ["motsägelser"]
   },
-  
   "similarity_matrix": [
-    {
-      "document_pair": "Dokument 1 vs Dokument 2",
-      "similarity_score": 0.75,
-      "similarity_reasoning": "förklaring av likheten"
-    }
+    {"document_pair": "Dok 1 vs Dok 2", "similarity_score": 0.75, "similarity_reasoning": "kort förklaring"}
   ],
-  
-  "thematic_trends": {
-    "emerging_themes": ["teman som verkar växa över tid (om tillämpligt)"],
-    "declining_themes": ["teman som minskar i fokus"],
-    "consistent_themes": ["teman som är stabila över dokumenten"]
-  },
-  
-  "value_changes": {
-    "economic_trends": ["förändringar i ekonomiska värden/KPIer över tid"],
-    "goal_evolution": ["hur mål har förändrats eller utvecklats"],
-    "risk_patterns": ["mönster i identifierade risker"]
-  },
-  
-  "key_insights": [
-    "Insikt 1: viktig upptäckt från jämförelsen",
-    "Insikt 2: annan viktig observation"
-  ],
-  
-  "recommendations": [
-    "Rekommendation 1 baserad på jämförelsen",
-    "Rekommendation 2 för framtida analyser"
-  ]
+  "key_insights": ["3-5 viktiga insikter"],
+  "recommendations": ["2-3 rekommendationer"]
 }`;
 
     console.log('Sending comparison request to Lovable AI...');
 
-    // Call Lovable AI
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
-        messages: [
-          {
-            role: 'system',
-            content: 'Du är en expert på komparativ dokumentanalys. Analysera dokument djupt och identifiera meningsfulla mönster, likheter och skillnader. Svara alltid i JSON-format.'
-          },
-          {
-            role: 'user',
-            content: comparisonPrompt
-          }
-        ],
-        temperature: 0.3,
-      }),
-    });
+    // Call Lovable AI with rate limiting
+    let aiResponse: Response | undefined;
+    let retries = 0;
+    
+    while (retries <= MAX_RETRIES) {
+      aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            {
+              role: 'system',
+              content: 'Du är expert på komparativ analys. Svara i JSON-format, koncist och strukturerat.'
+            },
+            {
+              role: 'user',
+              content: comparisonPrompt
+            }
+          ],
+          temperature: 0.2,
+        }),
+      });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', aiResponse.status, errorText);
+      if (aiResponse.status === 429 && retries < MAX_RETRIES) {
+        console.log(`Rate limited, retrying in ${RETRY_DELAY * (retries + 1)}ms...`);
+        await sleep(RETRY_DELAY * (retries + 1));
+        retries++;
+        continue;
+      }
       
-      if (aiResponse.status === 429) {
+      break;
+    }
+
+    if (!aiResponse || !aiResponse.ok) {
+      const status = aiResponse?.status || 500;
+      const errorText = aiResponse ? await aiResponse.text() : 'No response from AI';
+      console.error('AI API error:', status, errorText);
+      
+      if (status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      if (aiResponse.status === 402) {
+      if (status === 402) {
         return new Response(
           JSON.stringify({ error: 'AI credits exhausted. Please add credits to continue.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
