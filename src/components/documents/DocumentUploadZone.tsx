@@ -9,6 +9,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 
+// Sanitize filename for storage (remove special characters, Swedish chars)
+const sanitizeFilename = (filename: string): string => {
+  const parts = filename.split(".");
+  const extension = parts.pop() || "";
+  const name = parts.join(".");
+  
+  const sanitized = name
+    .replace(/å/g, "a")
+    .replace(/ä/g, "a")
+    .replace(/ö/g, "o")
+    .replace(/Å/g, "A")
+    .replace(/Ä/g, "A")
+    .replace(/Ö/g, "O")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_-]/g, "");
+  
+  return `${sanitized}.${extension}`;
+};
+
 interface UploadFile {
   file: File;
   progress: number;
@@ -48,9 +67,10 @@ export const DocumentUploadZone = ({ onUploadComplete }: DocumentUploadZoneProps
 
     for (const uploadFile of newFiles) {
       try {
-        // Generate unique file path
+        // Generate unique file path with sanitized filename
         const timestamp = Date.now();
-        const filePath = `${user.id}/${timestamp}_${uploadFile.file.name}`;
+        const sanitizedName = sanitizeFilename(uploadFile.file.name);
+        const filePath = `${user.id}/${timestamp}_${sanitizedName}`;
 
         // Update progress to show upload started
         setUploadingFiles((prev) =>
@@ -87,9 +107,10 @@ export const DocumentUploadZone = ({ onUploadComplete }: DocumentUploadZoneProps
         );
 
         toast.success(`${uploadFile.file.name} uppladdad!`);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Upload error:", error);
-        toast.error(`Kunde inte ladda upp ${uploadFile.file.name}`);
+        const errorMessage = error?.message || "Okänt fel";
+        toast.error(`Kunde inte ladda upp ${uploadFile.file.name}: ${errorMessage}`);
         setUploadingFiles((prev) => prev.filter((f) => f.id !== uploadFile.id));
       }
     }
