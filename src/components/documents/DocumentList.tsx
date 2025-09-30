@@ -156,15 +156,15 @@ export function DocumentList() {
   }
 
   const renderDocument = (doc: Document, isLatest: boolean = true) => {
+    const Icon = getFileIcon(doc.file_type);
+    
     return (
       <Card key={doc.id} className={!isLatest ? "ml-8" : ""}>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-primary/10">
-                {getFileIcon(doc.file_type)({
-                  className: "h-6 w-6 text-primary",
-                })}
+                <Icon className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
