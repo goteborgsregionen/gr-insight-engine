@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import DocumentUpload from "./pages/DocumentUpload";
@@ -55,6 +56,7 @@ const App = () => {
               path="/"
               element={session ? <Navigate to="/dashboard" /> : <Auth />}
             />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               path="/dashboard"
               element={session ? <Dashboard /> : <Navigate to="/" />}

@@ -58,6 +58,26 @@ export default function Auth() {
     setIsLoading(false);
   };
 
+  const handlePasswordReset = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Kolla din e-post för återställningslänk!");
+    }
+
+    setIsLoading(false);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gr-pink via-background to-gr-wheat p-4">
       <Card className="w-full max-w-md">
@@ -78,9 +98,10 @@ export default function Auth() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="signin">Logga in</TabsTrigger>
               <TabsTrigger value="signup">Skapa konto</TabsTrigger>
+              <TabsTrigger value="reset">Återställ</TabsTrigger>
             </TabsList>
             
             <TabsContent value="signin">
@@ -133,6 +154,27 @@ export default function Auth() {
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Skapar konto..." : "Skapa konto"}
+                </Button>
+              </form>
+            </TabsContent>
+            
+            <TabsContent value="reset">
+              <form onSubmit={handlePasswordReset} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">E-post</Label>
+                  <Input
+                    id="reset-email"
+                    name="email"
+                    type="email"
+                    placeholder="din.epost@example.com"
+                    required
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Vi skickar en återställningslänk till din e-post
+                </p>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Skickar..." : "Skicka återställningslänk"}
                 </Button>
               </form>
             </TabsContent>
