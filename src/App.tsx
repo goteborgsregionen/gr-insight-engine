@@ -14,6 +14,7 @@ import Reports from "./pages/Reports";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Analysis from "./pages/Analysis";
+import AnalysisWorkspace from "./pages/AnalysisWorkspace";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -76,6 +77,10 @@ const App = () => {
             <Route
               path="/analysis"
               element={session ? <Analysis /> : <Navigate to="/" />}
+            />
+            <Route
+              path="/analysis/:sessionId"
+              element={session ? <AnalysisWorkspace /> : <Navigate to="/" />}
             />
             <Route
               path="/chat"

@@ -138,6 +138,51 @@ export type Database = {
           },
         ]
       }
+      analysis_sessions: {
+        Row: {
+          analysis_result: Json | null
+          analysis_type: string
+          chat_history: Json[] | null
+          completed_at: string | null
+          created_at: string | null
+          custom_prompt: string | null
+          document_ids: string[]
+          id: string
+          status: string
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          analysis_result?: Json | null
+          analysis_type?: string
+          chat_history?: Json[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          custom_prompt?: string | null
+          document_ids: string[]
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          analysis_result?: Json | null
+          analysis_type?: string
+          chat_history?: Json[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          custom_prompt?: string | null
+          document_ids?: string[]
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       comparative_analysis: {
         Row: {
           comparison_result: Json | null

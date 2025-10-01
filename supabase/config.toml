@@ -11,3 +11,12 @@ verify_jwt = true
 
 [functions.process-analysis-queue]
 verify_jwt = false
+
+[functions.start-analysis-session]
+verify_jwt = true
+
+[functions.analysis-chat]
+verify_jwt = true
+
+[functions.generate-report]
+verify_jwt = true

@@ -1,0 +1,477 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Send, FileText, Edit2, ArrowLeft, Download } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
+
+export default function AnalysisWorkspace() {
+  const { sessionId } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [chatInput, setChatInput] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
+
+  // Fetch session
+  const { data: session, isLoading } = useQuery({
+    queryKey: ['analysis-session', sessionId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('analysis_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (session) {
+      setEditedTitle(session.title);
+    }
+  }, [session]);
+
+  // Chat mutation
+  const chatMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const { data, error } = await supabase.functions.invoke('analysis-chat', {
+        body: { sessionId, message },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-session', sessionId] });
+      setChatInput("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte skicka meddelandet",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update title mutation
+  const updateTitleMutation = useMutation({
+    mutationFn: async (newTitle: string) => {
+      const { error } = await supabase
+        .from('analysis_sessions')
+        .update({ title: newTitle })
+        .eq('id', sessionId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-session', sessionId] });
+      setIsEditingTitle(false);
+      toast({
+        title: "Sparat",
+        description: "Titeln har uppdaterats",
+      });
+    },
+  });
+
+  // Generate report mutation
+  const reportMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('generate-report', {
+        body: { sessionId, format: 'html' },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      // Create blob and download
+      const blob = new Blob([data.html], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${data.title}.html`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Rapport genererad",
+        description: "Rapporten har laddats ner",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte generera rapport",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendMessage = () => {
+    if (!chatInput.trim()) return;
+    chatMutation.mutate(chatInput);
+  };
+
+  const handleSaveTitle = () => {
+    if (!editedTitle.trim()) return;
+    updateTitleMutation.mutate(editedTitle);
+  };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!session) {
+    return (
+      <MainLayout>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">Session hittades inte</p>
+            <Button onClick={() => navigate('/analysis')} className="mt-4">
+              Tillbaka till analys
+            </Button>
+          </CardContent>
+        </Card>
+      </MainLayout>
+    );
+  }
+
+  const result = session.analysis_result as any;
+  const template = ANALYSIS_TEMPLATES.find(t => t.id === session.analysis_type);
+
+  return (
+    <MainLayout>
+      <div className="mb-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/analysis')}
+          className="gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Tillbaka till analys
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-6">
+        {/* Left: Results */}
+        <div className="space-y-6">
+          {/* Header */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  {isEditingTitle ? (
+                    <div className="flex gap-2">
+                      <Input
+                        value={editedTitle}
+                        onChange={(e) => setEditedTitle(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSaveTitle()}
+                        className="text-2xl font-semibold"
+                      />
+                      <Button onClick={handleSaveTitle} size="sm">
+                        Spara
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setIsEditingTitle(false);
+                          setEditedTitle(session.title);
+                        }} 
+                        size="sm" 
+                        variant="outline"
+                      >
+                        Avbryt
+                      </Button>
+                    </div>
+                  ) : (
+                    <CardTitle className="text-2xl">{session.title}</CardTitle>
+                  )}
+                  <CardDescription className="mt-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline">
+                        {session.document_ids.length} dokument
+                      </Badge>
+                      {template && (
+                        <Badge variant="outline" className={template.color}>
+                          {template.name}
+                        </Badge>
+                      )}
+                      <Badge variant={session.status === 'completed' ? 'default' : 'secondary'}>
+                        {session.status === 'completed' ? 'Slutförd' : 'Utkast'}
+                      </Badge>
+                    </div>
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  {!isEditingTitle && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsEditingTitle(true)}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => reportMutation.mutate()}
+                    disabled={reportMutation.isPending}
+                  >
+                    {reportMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Ladda ner rapport
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Tabs */}
+          <Tabs defaultValue="summary">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="summary">Sammanfattning</TabsTrigger>
+              <TabsTrigger value="details">Detaljer</TabsTrigger>
+              <TabsTrigger value="documents">Dokument</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="summary" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Översikt</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {result.summary || 'Ingen sammanfattning tillgänglig'}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {result.key_themes && result.key_themes.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Huvudteman</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {result.key_themes.map((theme: string, idx: number) => (
+                        <Badge key={idx} variant="secondary">
+                          {theme}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {result.keywords && result.keywords.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Nyckelord</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {result.keywords.map((kw: string, idx: number) => (
+                        <Badge key={idx} variant="outline">
+                          {kw}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="details" className="space-y-4">
+              {result.similarities && result.similarities.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Likheter</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.similarities.map((item: string, idx: number) => (
+                        <li key={idx} className="text-sm text-muted-foreground">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {result.differences && result.differences.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Skillnader</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.differences.map((item: string, idx: number) => (
+                        <li key={idx} className="text-sm text-muted-foreground">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {result.recommendations && result.recommendations.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Rekommendationer</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.recommendations.map((item: string, idx: number) => (
+                        <li key={idx} className="text-sm text-muted-foreground">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {result.key_findings && result.key_findings.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Viktiga fynd</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.key_findings.map((item: string, idx: number) => (
+                        <li key={idx} className="text-sm text-muted-foreground">
+                          • {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="documents" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Dokument i analysen</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4">
+                    {result.type === 'comparison' && result.documents?.map((doc: any) => (
+                      <div
+                        key={doc.id}
+                        className="p-4 border rounded-lg bg-muted/50"
+                      >
+                        <h4 className="font-semibold">{doc.title}</h4>
+                        <p className="text-sm text-muted-foreground">{doc.file_name}</p>
+                      </div>
+                    ))}
+                    {result.type === 'single' && result.document && (
+                      <div className="p-4 border rounded-lg bg-muted/50">
+                        <h4 className="font-semibold">{result.document.title}</h4>
+                        <p className="text-sm text-muted-foreground">{result.document.file_name}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Right: AI Chat */}
+        <Card className="sticky top-6 h-[calc(100vh-8rem)] flex flex-col">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Djupanalys med AI
+            </CardTitle>
+            <CardDescription>
+              Ställ frågor om analysen för att få djupare insikter
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col flex-1 min-h-0">
+            {/* Chat messages */}
+            <ScrollArea className="flex-1 pr-4 mb-4">
+              {session.chat_history && session.chat_history.length > 0 ? (
+                <div className="space-y-4">
+                  {session.chat_history.map((msg: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "p-3 rounded-lg",
+                        msg.role === 'user'
+                          ? "bg-primary/10 ml-8"
+                          : "bg-muted mr-8"
+                      )}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  ))}
+                  {chatMutation.isPending && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">AI tänker...</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div>
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-sm text-muted-foreground">
+                      Ställ en fråga för att börja analysera
+                    </p>
+                  </div>
+                </div>
+              )}
+            </ScrollArea>
+
+            {/* Input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Fråga om analysen..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                disabled={chatMutation.isPending}
+              />
+              <Button
+                size="icon"
+                onClick={handleSendMessage}
+                disabled={!chatInput.trim() || chatMutation.isPending}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </MainLayout>
+  );
+}
