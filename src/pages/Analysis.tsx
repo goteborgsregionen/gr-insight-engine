@@ -9,7 +9,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ArrowRight, ArrowLeft, FileSearch } from "lucide-react";
+import { 
+  Loader2, 
+  ArrowRight, 
+  ArrowLeft, 
+  FileSearch,
+  DollarSign,
+  Shield,
+  Target,
+  Code,
+  BarChart
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
 import { ANALYSIS_TEMPLATES, getTemplateById } from "@/lib/analysisTemplates";
@@ -276,7 +286,17 @@ export default function Analysis() {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {ANALYSIS_TEMPLATES.map((template) => {
-                  const Icon = template.icon;
+                  // Map icon string names to actual Lucide components
+                  const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+                    'FileSearch': FileSearch,
+                    'DollarSign': DollarSign,
+                    'Shield': Shield,
+                    'Target': Target,
+                    'Code': Code,
+                    'BarChart': BarChart,
+                  };
+                  const Icon = iconMap[template.icon] || FileSearch;
+                  
                   return (
                     <Card
                       key={template.id}
@@ -291,7 +311,7 @@ export default function Analysis() {
                           "w-12 h-12 rounded-full mx-auto flex items-center justify-center",
                           template.color
                         )}>
-                          {Icon && <Icon className="h-6 w-6" />}
+                          <Icon className="h-6 w-6" />
                         </div>
                         <h4 className="font-semibold">{template.name}</h4>
                         <p className="text-xs text-muted-foreground">
