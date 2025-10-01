@@ -32,6 +32,22 @@ export default function Dashboard() {
     },
   });
 
+  // Fetch latest aggregate insights for dashboard
+  const { data: latestInsight } = useQuery({
+    queryKey: ["latest-insight"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("aggregate_insights")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const statsCards = [
     {
       title: "Uppladdade dokument",
@@ -107,7 +123,9 @@ export default function Dashboard() {
               ))}
         </div>
 
-        <AggregateInsights />
+        {latestInsight && (
+          <AggregateInsights insight={latestInsight} />
+        )}
 
         <Card>
           <CardHeader>

@@ -1,5 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -7,28 +5,20 @@ import { Lightbulb, TrendingUp, AlertCircle, Target } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 
-export function AggregateInsights() {
-  const { data: insights, isLoading } = useQuery({
-    queryKey: ["aggregate-insights"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("aggregate_insights")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+interface AggregateInsightsProps {
+  insight: {
+    id: string;
+    insights: any;
+    trend_data: any;
+    recommendations: string[];
+    analyzed_document_count: number;
+    created_at: string;
+  };
+}
 
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  if (isLoading || !insights) {
-    return null;
-  }
-
-  const insightsData = insights.insights as any;
-  const trendData = insights.trend_data as any;
+export function AggregateInsights({ insight }: AggregateInsightsProps) {
+  const insightsData = insight.insights as any;
+  const trendData = insight.trend_data as any;
 
   return (
     <Card>
@@ -38,10 +28,10 @@ export function AggregateInsights() {
           Aggregerade Insikter
         </CardTitle>
         <CardDescription>
-          Genererade {formatDistanceToNow(new Date(insights.created_at), { 
+          Genererade {formatDistanceToNow(new Date(insight.created_at), { 
             addSuffix: true, 
             locale: sv 
-          })} • Baserat på {insights.analyzed_document_count} dokument
+          })} • Baserat på {insight.analyzed_document_count} dokument
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -122,14 +112,14 @@ export function AggregateInsights() {
         <Separator />
 
         {/* Recommendations */}
-        {insights.recommendations && insights.recommendations.length > 0 && (
+        {insight.recommendations && insight.recommendations.length > 0 && (
           <div>
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Target className="h-4 w-4" />
               Rekommendationer
             </h3>
             <div className="space-y-2">
-              {insights.recommendations.map((rec: string, idx: number) => (
+              {insight.recommendations.map((rec: string, idx: number) => (
                 <div key={idx} className="flex items-start gap-2 text-sm">
                   <Badge className="mt-0.5">{idx + 1}</Badge>
                   <p className="text-muted-foreground">{rec}</p>

@@ -2,14 +2,18 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
-import { Loader2, TrendingUp, GitCompare, FileSearch } from "lucide-react";
+import { Loader2, TrendingUp, GitCompare, FileSearch, Lightbulb } from "lucide-react";
 import { ComparisonResults } from "@/components/analysis/ComparisonResults";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
 import { AggregateInsights } from "@/components/analysis/AggregateInsights";
+import { ComparisonResultsCompact } from "@/components/analysis/ComparisonResultsCompact";
+import { AggregateInsightsCompact } from "@/components/analysis/AggregateInsightsCompact";
+import { CombinedTimeline } from "@/components/analysis/CombinedTimeline";
 import { AnalysisProgress } from "@/components/analysis/AnalysisProgress";
 import { AnalysisNotifications } from "@/components/analysis/AnalysisNotifications";
 
@@ -37,16 +41,32 @@ export default function Analysis() {
     },
   });
 
-  // Fetch latest comparison
-  const { data: latestComparison } = useQuery({
-    queryKey: ["latest-comparison"],
+  // Fetch comparison history (5 latest, expandable to 20)
+  const [showAllComparisons, setShowAllComparisons] = useState(false);
+  const { data: comparisonHistory } = useQuery({
+    queryKey: ["comparison-history", showAllComparisons],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comparative_analysis")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(showAllComparisons ? 20 : 5);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch insights history (5 latest, expandable to 20)
+  const [showAllInsights, setShowAllInsights] = useState(false);
+  const { data: insightsHistory } = useQuery({
+    queryKey: ["insights-history", showAllInsights],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("aggregate_insights")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(showAllInsights ? 20 : 5);
 
       if (error) throw error;
       return data;
@@ -68,7 +88,7 @@ export default function Analysis() {
         title: "Jämförelse klar",
         description: "Dokumenten har analyserats och jämförts",
       });
-      queryClient.invalidateQueries({ queryKey: ["latest-comparison"] });
+      queryClient.invalidateQueries({ queryKey: ["comparison-history"] });
       queryClient.invalidateQueries({ queryKey: ["all-documents"] });
       setSelectedDocs([]);
     },
@@ -96,7 +116,7 @@ export default function Analysis() {
         title: "Insikter genererade",
         description: "Aggregerade insikter har skapats från alla dokument",
       });
-      queryClient.invalidateQueries({ queryKey: ["aggregate-insights"] });
+      queryClient.invalidateQueries({ queryKey: ["insights-history"] });
     },
     onError: (error: Error) => {
       toast({
@@ -123,6 +143,17 @@ export default function Analysis() {
       return;
     }
     compareMutation.mutate(selectedDocs);
+  };
+
+  // Pre-select documents from a previous comparison
+  const handleContinueFromComparison = (documentIds: string[]) => {
+    setSelectedDocs(documentIds);
+    toast({
+      title: "Dokument valda",
+      description: `${documentIds.length} dokument från tidigare jämförelse har valts`,
+    });
+    // Scroll to top where document selection is
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (docsLoading) {
@@ -265,11 +296,123 @@ export default function Analysis() {
           </Card>
         </div>
 
-        <AggregateInsights />
+        <Tabs defaultValue="work" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="work">
+              Arbeta Nu
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              Historik ({(comparisonHistory?.length || 0) + (insightsHistory?.length || 0)})
+            </TabsTrigger>
+          </TabsList>
 
-        {latestComparison && (
-          <ComparisonResults comparison={latestComparison} />
-        )}
+          {/* Tab 1: Arbeta Nu (nuvarande senaste resultat) */}
+          <TabsContent value="work" className="space-y-6">
+            {insightsHistory && insightsHistory.length > 0 && (
+              <AggregateInsights insight={insightsHistory[0]} />
+            )}
+            
+            {comparisonHistory && comparisonHistory.length > 0 && (
+              <ComparisonResults comparison={comparisonHistory[0]} />
+            )}
+
+            {!insightsHistory?.length && !comparisonHistory?.length && (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <FileSearch className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    Inga analyser ännu. Jämför dokument eller generera insikter för att komma igång.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tab 2: Historik med kompakta komponenter */}
+          <TabsContent value="history" className="space-y-6">
+            {/* Jämförelser historik */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <GitCompare className="h-5 w-5" />
+                  Tidigare Jämförelser
+                </CardTitle>
+                <CardDescription>
+                  {comparisonHistory?.length || 0} jämförelser
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {comparisonHistory && comparisonHistory.length > 0 ? (
+                  <>
+                    {comparisonHistory.map((comp) => (
+                      <ComparisonResultsCompact 
+                        key={comp.id} 
+                        comparison={comp}
+                        onContinue={handleContinueFromComparison}
+                      />
+                    ))}
+                    
+                    {!showAllComparisons && comparisonHistory.length >= 5 && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowAllComparisons(true)}
+                        className="w-full"
+                      >
+                        Ladda fler jämförelser
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Inga jämförelser ännu
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Insikter historik */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5" />
+                  Tidigare Insikter
+                </CardTitle>
+                <CardDescription>
+                  {insightsHistory?.length || 0} insikter
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {insightsHistory && insightsHistory.length > 0 ? (
+                  <>
+                    {insightsHistory.map((insight) => (
+                      <AggregateInsightsCompact key={insight.id} insight={insight} />
+                    ))}
+                    
+                    {!showAllInsights && insightsHistory.length >= 5 && (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowAllInsights(true)}
+                        className="w-full"
+                      >
+                        Ladda fler insikter
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Inga insikter ännu
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Kombinerad tidslinje */}
+            <CombinedTimeline 
+              comparisons={comparisonHistory} 
+              insights={insightsHistory} 
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
   );
