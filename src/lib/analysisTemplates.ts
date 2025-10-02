@@ -114,3 +114,19 @@ export function getTemplatePromptModifier(type: string, customPrompt?: string): 
   const template = getTemplateById(type);
   return template?.promptModifier || '';
 }
+
+export function combinePromptModifiers(
+  templateIds: string[], 
+  customPrompts: Record<string, string>
+): string {
+  const prompts = templateIds.map(id => {
+    // Use custom prompt if it exists, otherwise use standard
+    if (customPrompts[id]) {
+      return customPrompts[id];
+    }
+    const template = getTemplateById(id);
+    return template?.promptModifier || '';
+  }).filter(Boolean);
+  
+  return prompts.join('\n\n---\n\n');
+}

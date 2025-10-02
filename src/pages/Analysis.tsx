@@ -9,6 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   Loader2, 
   ArrowRight, 
@@ -18,11 +26,13 @@ import {
   Shield,
   Target,
   Code,
-  BarChart
+  BarChart,
+  Edit,
+  Check
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
-import { ANALYSIS_TEMPLATES, getTemplateById } from "@/lib/analysisTemplates";
+import { ANALYSIS_TEMPLATES, getTemplateById, combinePromptModifiers } from "@/lib/analysisTemplates";
 import { cn } from "@/lib/utils";
 
 type AnalysisStep = 1 | 2 | 3;
@@ -32,8 +42,9 @@ export default function Analysis() {
   const navigate = useNavigate();
   const [step, setStep] = useState<AnalysisStep>(1);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('standard');
-  const [customPrompt, setCustomPrompt] = useState("");
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
+  const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
+  const [editingPromptFor, setEditingPromptFor] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   // Fetch documents
@@ -68,12 +79,14 @@ export default function Analysis() {
   // Start analysis mutation
   const startAnalysisMutation = useMutation({
     mutationFn: async () => {
-      const template = getTemplateById(selectedTemplate);
+      const combinedPrompt = combinePromptModifiers(selectedTemplates, customPrompts);
+      
       const { data, error } = await supabase.functions.invoke('start-analysis-session', {
         body: {
           documentIds: selectedDocs,
-          analysisType: selectedTemplate,
-          customPrompt: selectedTemplate === 'custom' ? customPrompt : template?.promptModifier,
+          analysisType: selectedTemplates.join(','),
+          customPrompt: combinedPrompt,
+          title: `Analys ${new Date().toLocaleDateString('sv-SE')}`
         },
       });
 
@@ -120,6 +133,25 @@ export default function Analysis() {
         : [...prev, docId]
     );
   };
+
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplates(prev => {
+      if (prev.includes(templateId)) {
+        return prev.filter(id => id !== templateId);
+      } else if (prev.length < 4) {
+        return [...prev, templateId];
+      } else {
+        toast({
+          title: "Max 4 perspektiv",
+          description: "Du kan välja max 4 analysperspektiv samtidigt.",
+          variant: "destructive",
+        });
+        return prev;
+      }
+    });
+  };
+
+  const editingTemplate = editingPromptFor ? getTemplateById(editingPromptFor) : null;
 
   const handleStartAnalysis = () => {
     startAnalysisMutation.mutate();
@@ -284,9 +316,28 @@ export default function Analysis() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {selectedTemplates.length > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                  <Check className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {selectedTemplates.length} perspektiv valda
+                  </span>
+                  <div className="flex flex-wrap gap-1 ml-2">
+                    {selectedTemplates.map(id => {
+                      const template = getTemplateById(id);
+                      return template ? (
+                        <Badge key={id} variant="secondary" className="text-xs">
+                          {template.name}
+                          {customPrompts[id] && <span className="ml-1">✏️</span>}
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {ANALYSIS_TEMPLATES.map((template) => {
-                  // Map icon string names to actual Lucide components
                   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
                     'FileSearch': FileSearch,
                     'DollarSign': DollarSign,
@@ -296,44 +347,70 @@ export default function Analysis() {
                     'BarChart': BarChart,
                   };
                   const Icon = iconMap[template.icon] || FileSearch;
+                  const isSelected = selectedTemplates.includes(template.id);
+                  const hasCustomPrompt = !!customPrompts[template.id];
                   
                   return (
                     <Card
                       key={template.id}
                       className={cn(
-                        "cursor-pointer transition-all hover:shadow-md",
-                        selectedTemplate === template.id && "border-primary bg-primary/5 ring-2 ring-primary"
+                        "cursor-pointer transition-all hover:shadow-lg relative",
+                        isSelected && "ring-2 ring-primary"
                       )}
-                      onClick={() => setSelectedTemplate(template.id)}
+                      onClick={() => toggleTemplateSelection(template.id)}
                     >
-                      <CardContent className="pt-6 text-center space-y-3">
+                      <div className="absolute top-3 left-3 z-10" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleTemplateSelection(template.id)}
+                        />
+                      </div>
+                      {isSelected && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="absolute top-2 right-2 h-8 w-8 p-0 z-10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPromptFor(template.id);
+                          }}
+                        >
+                          <Edit className={cn(
+                            "h-4 w-4",
+                            hasCustomPrompt && "text-amber-500"
+                          )} />
+                        </Button>
+                      )}
+                      <CardContent className="p-6 space-y-3 text-center pt-10">
                         <div className={cn(
                           "w-12 h-12 rounded-full mx-auto flex items-center justify-center",
                           template.color
                         )}>
                           <Icon className="h-6 w-6" />
                         </div>
-                        <h4 className="font-semibold">{template.name}</h4>
+                        <div className="flex items-center justify-center gap-2">
+                          <h4 className="font-semibold">{template.name}</h4>
+                          {hasCustomPrompt && (
+                            <Badge variant="secondary" className="text-xs">
+                              Anpassad
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {template.description}
                         </p>
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {template.focusAreas.map((area) => (
+                            <Badge key={area} variant="secondary" className="text-xs">
+                              {area}
+                            </Badge>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
                   );
                 })}
               </div>
-
-              {selectedTemplate === 'custom' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Beskriv din analys</label>
-                  <Textarea
-                    placeholder="Vad vill du fokusera på i analysen? Beskriv specifika aspekter eller frågeställningar..."
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    rows={4}
-                  />
-                </div>
-              )}
             </CardContent>
             <CardFooter className="flex justify-between">
               <Button
@@ -345,7 +422,7 @@ export default function Analysis() {
               </Button>
               <Button
                 onClick={handleStartAnalysis}
-                disabled={selectedTemplate === 'custom' && !customPrompt.trim()}
+                disabled={selectedTemplates.length === 0}
               >
                 Starta analys
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -377,6 +454,72 @@ export default function Analysis() {
           </Card>
         )}
       </div>
+
+      {/* Prompt Editor Dialog */}
+      <Dialog open={editingPromptFor !== null} onOpenChange={(open) => !open && setEditingPromptFor(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Redigera Prompt: {editingTemplate?.name}</DialogTitle>
+            <DialogDescription>
+              Detta är standardprompten som AI:n använder. Du kan anpassa den för denna analys.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingTemplate && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm font-medium mb-2">📋 Standardprompt:</p>
+                <pre className="text-xs whitespace-pre-wrap font-mono">
+                  {editingTemplate.promptModifier}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="custom-prompt">Din anpassade prompt</Label>
+                <Textarea
+                  id="custom-prompt"
+                  value={customPrompts[editingPromptFor!] || editingTemplate.promptModifier}
+                  onChange={(e) => setCustomPrompts(prev => ({
+                    ...prev,
+                    [editingPromptFor!]: e.target.value
+                  }))}
+                  rows={12}
+                  placeholder="Redigera prompten här..."
+                  className="font-mono text-sm"
+                />
+              </div>
+              
+              <div className="flex gap-2 justify-end">
+                <Button
+                  onClick={() => {
+                    setCustomPrompts(prev => {
+                      const newPrompts = {...prev};
+                      delete newPrompts[editingPromptFor!];
+                      return newPrompts;
+                    });
+                    toast({
+                      title: "Återställd",
+                      description: "Prompten har återställts till standard.",
+                    });
+                  }}
+                  variant="outline"
+                >
+                  Återställ till standard
+                </Button>
+                <Button onClick={() => {
+                  setEditingPromptFor(null);
+                  toast({
+                    title: "Sparat",
+                    description: "Din anpassade prompt har sparats.",
+                  });
+                }}>
+                  Spara ändringar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
