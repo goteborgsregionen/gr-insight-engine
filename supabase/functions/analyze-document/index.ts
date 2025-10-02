@@ -103,10 +103,22 @@ serve(async (req) => {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const contentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Treat all files as text - no base64 encoding needed
-    const decoder = new TextDecoder();
-    const fileContent = decoder.decode(fileBuffer);
-    console.log(`${isPDF ? 'PDF' : 'Text'} file detected. Content length: ${fileContent.length}, Hash: ${contentHash}`);
+    // Convert PDF to base64 for Gemini vision API, or decode text files normally
+    let fileContent: string;
+    let base64Data: string | null = null;
+
+    if (isPDF) {
+      // Convert PDF to base64 for Gemini vision API
+      const uint8Array = new Uint8Array(fileBuffer);
+      base64Data = btoa(String.fromCharCode(...uint8Array));
+      fileContent = `[PDF Document - ${fileBuffer.byteLength} bytes]`;
+      console.log(`PDF file detected. Size: ${fileBuffer.byteLength} bytes, Hash: ${contentHash}`);
+    } else {
+      // Text files can be decoded normally
+      const decoder = new TextDecoder();
+      fileContent = decoder.decode(fileBuffer);
+      console.log(`Text file detected. Content length: ${fileContent.length}, Hash: ${contentHash}`);
+    }
 
     // Check if we already have a valid analysis for this content
     const { data: existingAnalysis } = await supabase
@@ -319,10 +331,11 @@ KRITISKT - För VARJE tabell i dokumentet:
 4. Notera sidnummer/sektion där tabellen finns
 5. Om tabellen är för stor (>20 rader), ta första 10 och sista 10 + ange [... X rader utelämnade ...]
 
-OBS - Detta är textutvinning från PDF:
-- Om texten verkar ofullständig eller saknas kan det vara en scannad PDF utan text layer
-- I så fall, lägg till en varning i "warnings" arrayen om att dokumentet kanske behöver OCR
-- Fokusera på den text som finns tillgänglig i PDF:ens text layer
+VIKTIGT - Du kan läsa PDF-filer direkt:
+- Du ser hela PDF:en inklusive layout, tabeller, bilder och text
+- Du kan extrahera data från tabeller och diagram direkt
+- Du kan identifiera hierarkier och strukturer visuellt
+- Fokusera på att ge en komplett och noggrann analys av allt innehåll
 
 VIKTIGT - För PDF-dokument, fokusera på:
 - Tabeller och strukturerad data (bevara format och värden exakt)
@@ -385,13 +398,7 @@ Returnera strukturerad JSON:
     "confidence_level": "hög/medel/låg säkerhet i dokumentet",
     "focus": "huvudsakligt fokusområde"
   },
-VIKTIGT OUTPUT-FORMAT:
-Du ska returnera ett JSON-objekt med följande struktur:
-
-{
-  "summary": "Kort sammanfattning (200-300 ord) för databas-sökning",
-  "keywords": ["nyckelord1", "nyckelord2", ...],
-  "markdown_output": "## Din markdown-formaterade output här enligt instruktionerna ovan",
+  "keywords": ["10-15 nyckelord"],
   "extracted_data": {
     "dates": ["datum med kontext"],
     "amounts": ["belopp med fullständig kontext och enhet"],
@@ -399,13 +406,14 @@ Du ska returnera ett JSON-objekt med följande struktur:
     "organizations": ["organisationer med relation till dokumentet"],
     "locations": ["platser med kontext"],
     "key_numbers": [{"label": "beskrivning", "value": "värde", "unit": "enhet", "page": sidnummer}],
-    "tables": [...],
-    "document_metadata": {...},
-    "business_intelligence": {...}
-  }
+    "tables": "se extracted_tables ovan",
+    "document_metadata": "se document_metadata ovan",
+    "business_intelligence": "se business_intelligence ovan"
+  },
+  "markdown_output": "## Din fullständiga markdown-formaterade analys här enligt instruktionerna ovan"
 }
 
-KRITISKT: 
+KRITISKT OUTPUT-FORMAT:
 - "markdown_output" fältet ska innehålla den fullständiga analysen formaterad enligt de markdown-sektioner som specificeras i instruktionerna ovan
 - Använd markdown-syntax: ## för rubriker, **bold**, listor, tabeller etc.
 - "summary" och "keywords" används för databas och sökning
@@ -464,8 +472,31 @@ Returnera strukturerad JSON:
 
     console.log('Sending request to Lovable AI (gemini-2.5-flash)...');
 
-    // Call Lovable AI - unified text-only request for all file types
-    const requestBody = {
+    // Call Lovable AI - different request format for PDFs vs text files
+    const requestBody = isPDF ? {
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: 'Du är en expertanalysassistent för dokument. Du kan läsa PDF-filer direkt och extrahera all information inklusive tabeller, diagram och layout. Analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: analysisPrompt
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:application/pdf;base64,${base64Data}`
+              }
+            }
+          ]
+        }
+      ]
+    } : {
       model: 'google/gemini-2.5-flash',
       messages: [
         {
