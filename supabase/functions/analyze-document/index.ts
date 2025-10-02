@@ -623,9 +623,28 @@ Returnera strukturerad JSON:
           .in('document_id', session.document_ids)
           .eq('is_valid', true);
 
-        if (!resultsError && allResults && allResults.length === session.document_ids.length) {
-          // All documents are analyzed - update session
-          console.log(`All documents analyzed for session ${session.id}, updating status...`);
+        // Get queue status for all documents
+        const { data: queueItems } = await supabase
+          .from('analysis_queue')
+          .select('status, document_id')
+          .in('document_id', session.document_ids);
+
+        const completedCount = allResults?.length || 0;
+        const totalCount = session.document_ids.length;
+        const failedCount = queueItems?.filter(q => q.status === 'failed').length || 0;
+        const completionRate = completedCount / totalCount;
+
+        // Mark session as completed if:
+        // - All documents are analyzed, OR
+        // - 80%+ are analyzed AND the rest are failed/stuck
+        const shouldComplete = 
+          completedCount === totalCount || 
+          (completionRate >= 0.8 && (completedCount + failedCount) === totalCount);
+
+        if (!resultsError && allResults && shouldComplete) {
+          // Update session with partial or complete results
+          const isPartial = completedCount < totalCount;
+          console.log(`${isPartial ? 'Partial' : 'Complete'} analysis ready for session ${session.id} (${completedCount}/${totalCount} documents)`);
 
           // Fetch document info for the aggregated result
           const { data: sessionDocs } = await supabase
@@ -634,9 +653,17 @@ Returnera strukturerad JSON:
             .in('id', session.document_ids);
 
           // Build aggregated result
+          const failedDocIds = session.document_ids.filter((id: string) => 
+            !allResults?.find(r => r.document_id === id)
+          );
+          
           const aggregatedResult: any = {
             type: session.document_ids.length > 1 ? 'comparison' : 'single',
             documents: sessionDocs || [],
+            partial: isPartial,
+            failed_documents: failedDocIds,
+            completed_count: completedCount,
+            total_count: totalCount,
           };
 
           if (session.document_ids.length === 1) {

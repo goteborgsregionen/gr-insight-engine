@@ -8,6 +8,17 @@ const corsHeaders = {
 
 const BATCH_SIZE = 5;
 const MAX_ATTEMPTS = 3;
+const ANALYSIS_TIMEOUT = 120000; // 120 seconds
+
+// Wrapper function to add timeout to analyze-document calls
+async function analyzeWithTimeout(supabase: any, docId: string, timeout = ANALYSIS_TIMEOUT) {
+  return Promise.race([
+    supabase.functions.invoke('analyze-document', { body: { documentId: docId } }),
+    new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Analysis timeout - exceeded 120 seconds')), timeout)
+    )
+  ]);
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -62,10 +73,8 @@ serve(async (req) => {
             })
             .eq('id', item.id);
 
-          // Analyze document
-          const { data, error } = await supabase.functions.invoke('analyze-document', {
-            body: { documentId: item.document_id },
-          });
+          // Analyze document with timeout
+          const { data, error } = await analyzeWithTimeout(supabase, item.document_id);
 
           if (error) throw error;
 
@@ -84,8 +93,9 @@ serve(async (req) => {
           console.error(`Queue item ${item.id} failed:`, error);
           
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const isTimeout = errorMessage.includes('timeout');
           
-          // Update with error
+          // Update with error - always increment attempts
           const newAttempts = item.attempts + 1;
           const newStatus = newAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
           
@@ -93,11 +103,13 @@ serve(async (req) => {
             .from('analysis_queue')
             .update({ 
               status: newStatus,
-              error_message: errorMessage,
+              attempts: newAttempts,
+              error_message: isTimeout ? `Timeout after 120s (attempt ${newAttempts}/${MAX_ATTEMPTS})` : errorMessage,
               updated_at: new Date().toISOString()
             })
             .eq('id', item.id);
 
+          console.log(`Queue item ${item.id} marked as ${newStatus} (attempts: ${newAttempts}/${MAX_ATTEMPTS})`);
           return { success: false, id: item.id, error: errorMessage };
         }
       })

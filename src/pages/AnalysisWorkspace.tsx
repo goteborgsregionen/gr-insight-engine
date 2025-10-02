@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, FileText, Edit2, ArrowLeft, Download } from "lucide-react";
+import { Loader2, Send, FileText, Edit2, ArrowLeft, Download, AlertCircle, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
 import ReactMarkdown from "react-markdown";
@@ -41,6 +42,35 @@ export default function AnalysisWorkspace() {
       // Poll every 3 seconds if status is 'processing'
       return query.state.data?.status === 'processing' ? 3000 : false;
     },
+  });
+
+  // Fetch individual analysis results for partial display
+  const { data: individualResults } = useQuery({
+    queryKey: ['analysis-results', session?.document_ids],
+    queryFn: async () => {
+      if (!session?.document_ids) return [];
+      const { data } = await supabase
+        .from('analysis_results')
+        .select('*')
+        .in('document_id', session.document_ids);
+      return data || [];
+    },
+    enabled: !!session?.document_ids,
+  });
+
+  // Fetch queue status for retry functionality
+  const { data: queueItems } = useQuery({
+    queryKey: ['analysis-queue', session?.document_ids],
+    queryFn: async () => {
+      if (!session?.document_ids) return [];
+      const { data } = await supabase
+        .from('analysis_queue')
+        .select('*')
+        .in('document_id', session.document_ids);
+      return data || [];
+    },
+    enabled: !!session?.document_ids && session?.status === 'processing',
+    refetchInterval: session?.status === 'processing' ? 3000 : false,
   });
 
   useEffect(() => {
@@ -138,6 +168,38 @@ export default function AnalysisWorkspace() {
     updateTitleMutation.mutate(editedTitle);
   };
 
+  // Retry failed document analysis
+  const retryMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      // Reset queue item status to pending
+      const { error: updateError } = await supabase
+        .from('analysis_queue')
+        .update({ status: 'pending', attempts: 0, error_message: null })
+        .eq('document_id', documentId);
+
+      if (updateError) throw updateError;
+
+      // Trigger queue processing
+      const { error: invokeError } = await supabase.functions.invoke('process-analysis-queue');
+      if (invokeError) throw invokeError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-queue', session?.document_ids] });
+      queryClient.invalidateQueries({ queryKey: ['analysis-session', sessionId] });
+      toast({
+        title: "Analys startas om",
+        description: "Dokumentet analyseras nu på nytt",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte starta om analysen",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -148,8 +210,13 @@ export default function AnalysisWorkspace() {
     );
   }
 
-  // Show loading state while processing
-  if (session?.status === 'processing') {
+  // Show loading or partial results while processing
+  const isProcessing = session?.status === 'processing';
+  const hasPartialResults = isProcessing && individualResults && individualResults.length > 0;
+  const pendingCount = session?.document_ids.length - (individualResults?.length || 0);
+  const failedItems = queueItems?.filter(q => q.status === 'failed') || [];
+
+  if (isProcessing && !hasPartialResults) {
     return (
       <MainLayout>
         <div className="max-w-4xl mx-auto">
@@ -227,6 +294,53 @@ export default function AnalysisWorkspace() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,400px] gap-6">
         {/* Left: Results */}
         <div className="space-y-6">
+          {/* Processing Banner */}
+          {isProcessing && hasPartialResults && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <span>
+                    Analys pågår för {pendingCount} av {session.document_ids.length} dokument.
+                    {failedItems.length > 0 && ` ${failedItems.length} dokument misslyckades.`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Failed Documents Retry */}
+          {failedItems.length > 0 && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-semibold">{failedItems.length} dokument misslyckades:</p>
+                  {failedItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between text-sm">
+                      <span className="text-xs">{item.error_message || 'Okänt fel'}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => retryMutation.mutate(item.document_id)}
+                        disabled={retryMutation.isPending}
+                      >
+                        {retryMutation.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                        )}
+                        Försök igen
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
           {/* Header */}
           <Card>
             <CardHeader>
@@ -308,7 +422,29 @@ export default function AnalysisWorkspace() {
             </TabsList>
 
             <TabsContent value="summary" className="space-y-4">
-              {result.extracted_data?.markdown_output ? (
+              {/* Show partial results while processing */}
+              {isProcessing && hasPartialResults && (
+                <>
+                  {individualResults.map((result) => (
+                    <Card key={result.id}>
+                      <CardHeader>
+                        <CardTitle>Analysresultat (Delvis)</CardTitle>
+                        <CardDescription>
+                          Resultat från {individualResults.length} av {session.document_ids.length} dokument
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+                        <ReactMarkdown>
+                          {(result.extracted_data as any)?.markdown_output || result.summary}
+                        </ReactMarkdown>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              )}
+
+              {/* Show complete results */}
+              {!isProcessing && result.extracted_data?.markdown_output ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Analysresultat</CardTitle>
@@ -319,7 +455,7 @@ export default function AnalysisWorkspace() {
                     </ReactMarkdown>
                   </CardContent>
                 </Card>
-              ) : (
+              ) : !isProcessing && (
                 <>
                   <Card>
                     <CardHeader>
