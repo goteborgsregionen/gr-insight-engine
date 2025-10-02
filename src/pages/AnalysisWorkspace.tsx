@@ -200,6 +200,57 @@ export default function AnalysisWorkspace() {
     },
   });
 
+  // Force complete stuck sessions
+  const forceCompleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!session || !individualResults) return;
+
+      const allResults = individualResults;
+      const aggregatedResult = {
+        type: session.document_ids.length > 1 ? 'comparison' : 'single',
+        documents: session.document_ids,
+        results: allResults,
+        summary: allResults?.[0]?.summary || '',
+        keywords: [...new Set(allResults?.flatMap((r: any) => r.keywords || []))],
+        extracted_data: {
+          markdown_output: allResults.map((r: any) => (r.extracted_data as any)?.markdown_output || r.summary).join('\n\n---\n\n')
+        },
+        completed_at: new Date().toISOString(),
+        partial: allResults.length < session.document_ids.length,
+        failed_documents: session.document_ids.filter(
+          (id: string) => !allResults?.find((r: any) => r.document_id === id)
+        ),
+        completed_count: allResults.length,
+        total_count: session.document_ids.length,
+      };
+
+      const { error } = await supabase
+        .from('analysis_sessions')
+        .update({
+          status: 'completed',
+          analysis_result: aggregatedResult,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-session', sessionId] });
+      toast({
+        title: "Session slutförd",
+        description: "Sessionen har markerats som slutförd",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte slutföra sessionen",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -341,6 +392,34 @@ export default function AnalysisWorkspace() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Stuck Session Fix */}
+          {isProcessing && individualResults && individualResults.length === session.document_ids.length && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <span>
+                    Alla dokument är analyserade men sessionen har fastnat. Klicka för att slutföra manuellt.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => forceCompleteMutation.mutate()}
+                    disabled={forceCompleteMutation.isPending}
+                  >
+                    {forceCompleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Slutför Manuellt
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Header */}
           <Card>
             <CardHeader>
