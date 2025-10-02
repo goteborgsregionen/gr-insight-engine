@@ -147,58 +147,159 @@ serve(async (req) => {
       .eq('id', documentId);
 
     // Get template-specific prompt modifier
-    const getTemplateModifier = (type: string, customPrompt?: string): string => {
+    const getTemplatePromptModifier = (type: string, customPrompt?: string): string => {
       if (type === 'custom' && customPrompt) {
         return `\n\nANVÄNDAR-SPECIFIKT FOKUS:\n${customPrompt}\n`;
       }
       
       const templates: Record<string, string> = {
+        standard: `
+ANALYSTYP: Standard
+MÅL: Ge en sammanhängande översikt av de markerade dokumenten.
+
+INSTRUKTIONER:
+1. Läs och extrahera huvudsyftet med varje dokument.
+2. Identifiera:
+   - Viktiga aktörer (kommuner, avdelningar, projekt).
+   - Centrala mål och prioriteringar.
+   - Viktiga beslut, tidslinjer och resultat.
+3. Sammanfatta centrala budskap och teman.
+4. Sammanfatta om det finns viktiga likheter kontra skillnader kommuner emellan
+
+PRESENTATION:
+- Executive Summary (max 1 A4) för beslutsfattare.
+- Punktlista med de 5–7 viktigaste temana.
+- Tabell med dokument → tema → ansvarig aktör.
+- Kort ordlista över återkommande termer.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Executive Summary
+## Huvudteman
+## Viktiga Aktörer
+## Dokument-Tema-Karta
+## Nyckeltermer
+`,
         economic: `
-EKONOMISKT FOKUS - KRITISKT VIKTIGT:
-- Extrahera ALLA budgetsiffror, kostnader och ekonomiska värden
-- Hitta ALLA KPI:er relaterade till ekonomi och finans
-- Identifiera ROI, cost-benefit, och ekonomiska prognoser
-- Notera år, jämförelsevärden och trender
-- Markera finansiella risker och möjligheter
+ANALYSTYP: Ekonomisk
+MÅL: Analysera budget, kostnader, investeringar och ekonomiska trender.
+
+INSTRUKTIONER:
+1. Extrahera relevanta nyckeltal (kostnad/intäkt per invånare, investeringar, driftkostnader).
+2. Identifiera trender över tid (5–10 år där möjligt).
+3. Jämför mellan kommunerna samt med nationella referenser.
+4. Lyft fram riskområden eller avvikelser.
+5. Koppla ekonomiska insikter till strategiska prioriteringar.
+
+PRESENTATION:
+- Dashboard med KPI:er (använd tabell med indikator, kommun, GR-snitt, trend).
+- Top-5 och Botten-5 kommuner inom centrala indikatorer.
+- Kortfattade rekommendationer (3–5 punkter) för resursprioritering.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Ekonomisk Översikt
+## KPI-Dashboard
+## Trender och Jämförelser
+## Rekommenderade Åtgärder
 `,
         security: `
-SÄKERHETSFOKUS - KRITISKT VIKTIGT:
-- Identifiera ALLA säkerhetsåtgärder och kontroller
-- Hitta hot-scenarier, risker och sårbarheter
-- Extrahera compliance-krav (GDPR, ISO27001, etc.)
-- Notera säkerhetsincidenter och lärdomar
-- Hitta säkerhetsbudget och resurser
+ANALYSTYP: Säkerhet
+MÅL: Identifiera risker och sårbarheter i dokumenten.
+
+INSTRUKTIONER:
+1. Identifiera risker inom:
+   - IT- och dataskydd.
+   - Drift och fysisk infrastruktur.
+   - Lag- och standardefterlevnad (GDPR, NIS2).
+2. Lista tidigare incidenter eller svagheter.
+3. Föreslå riskminskande åtgärder och prioriteringar.
+
+PRESENTATION:
+- Riskmatris: sannolikhet × konsekvens.
+- Prioriteringslista med risker och föreslagna åtgärder.
+- Statusöversikt över kommunernas efterlevnad av standarder.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Risköversikt
+## Riskmatris
+## Prioriterade Åtgärder
+## Efterlevnadsstatus
 `,
         strategic: `
-STRATEGISKT FOKUS - KRITISKT VIKTIGT:
-- Identifiera vision, mission och övergripande mål
-- Extrahera långsiktiga planer och milestones
-- Hitta strategiska prioriteringar och initiativ
-- Notera konkurrensfördelar och differentiering
-- Identifiera strategiska risker och beroenden
+ANALYSTYP: Strategisk
+MÅL: Identifiera långsiktiga mål och strategiska prioriteringar i dokumenten.
+
+INSTRUKTIONER:
+1. Identifiera övergripande mål och visioner i dokumenten.
+2. Kartlägg gemensamma fokusområden för kommunerna.
+3. Jämför mot nationella strategier och EU-agendor.
+4. Identifiera gap mellan lokala och regionala mål.
+5. Lista möjligheter till samarbete och hinder som nämns.
+
+PRESENTATION:
+- Strategisk Målkarta: lista av teman → mål → indikatorer.
+- Gap-Analys: tabell med skillnader mellan kommuners och regionens/nationens mål.
+- Rekommenderade Fokusområden (3–5 punkter) för GR.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Strategisk Översikt
+## Gemensamma Fokusområden
+## Gap-Analys
+## Rekommenderade Fokusområden
 `,
         technical: `
-TEKNISKT FOKUS - KRITISKT VIKTIGT:
-- Extrahera tekniska specifikationer och arkitektur
-- Identifiera teknologier, plattformar och verktyg
-- Hitta tekniska krav och beroenden
-- Notera integrationer och API:er
-- Identifiera tekniska risker och teknisk skuld
+ANALYSTYP: Teknisk
+MÅL: Kartlägga tekniska system och processer för att hitta förbättringspotential.
+
+INSTRUKTIONER:
+1. Identifiera nämnda IT-system och plattformar.
+2. Lista processer som idag hanteras manuellt eller ineffektivt.
+3. Identifiera bristande interoperabilitet och standarder.
+4. Bedöm tekniska risker (föråldrade system, beroenden).
+
+PRESENTATION:
+- Systemlandskap med befintliga system och integrationsbehov.
+- Processkarta med möjligheter för digitalisering/automatisering.
+- Rekommendationslista med prioriterade åtgärder.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Teknisk Översikt
+## Systemlandskap
+## Processkarta
+## Rekommenderade Åtgärder
 `,
         kpi_metrics: `
-KPI-FOKUS - KRITISKT VIKTIGT:
-- Extrahera ALLA mätetal och KPI:er
-- Hitta målvärden, baseline och actual values
-- Identifiera framgångsfaktorer och success criteria
-- Notera mätfrekvens och ansvarsfördelning
-- Hitta dashboards och rapporteringsstrukturer
+ANALYSTYP: KPI & Metrics
+MÅL: Utvärdera prestationer och måluppfyllelse utifrån befintliga data.
+
+INSTRUKTIONER:
+1. Identifiera befintliga KPI:er som rapporteras i dokumenten.
+2. Bedöm måluppfyllelse utifrån tillgängliga data.
+3. Jämför prestationer mellan kommunerna och mot nationella mål.
+4. Föreslå nya KPI:er där mätning saknas.
+
+PRESENTATION:
+- KPI-Dashboard med trafikljusmodell (grön/gul/röd) för måluppfyllelse.
+- Gap-analys som visar saknade indikatorer eller data.
+- Rekommendationer för förbättrad uppföljning.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## KPI-Översikt
+## KPI-Dashboard
+## Gap-Analys
+## Rekommenderade KPI:er
 `
       };
       
       return templates[type] || '';
     };
 
-    const templateModifier = getTemplateModifier(analysis_type, custom_prompt);
+    const templateModifier = getTemplatePromptModifier(analysis_type, custom_prompt);
 
     // Enhanced prompt - different for PDFs vs text files
     const analysisPrompt = isPDF
@@ -284,24 +385,31 @@ Returnera strukturerad JSON:
     "confidence_level": "hög/medel/låg säkerhet i dokumentet",
     "focus": "huvudsakligt fokusområde"
   },
-  "keywords": ["15-25 nyckelord och fraser"],
+VIKTIGT OUTPUT-FORMAT:
+Du ska returnera ett JSON-objekt med följande struktur:
+
+{
+  "summary": "Kort sammanfattning (200-300 ord) för databas-sökning",
+  "keywords": ["nyckelord1", "nyckelord2", ...],
+  "markdown_output": "## Din markdown-formaterade output här enligt instruktionerna ovan",
   "extracted_data": {
     "dates": ["datum med kontext"],
     "amounts": ["belopp med fullständig kontext och enhet"],
     "people": ["personer med roller"],
     "organizations": ["organisationer med relation till dokumentet"],
     "locations": ["platser med kontext"],
-    "key_numbers": [{"label": "beskrivning", "value": "värde", "unit": "enhet", "page": sidnummer}]
-  },
-  "analysis_confidence": {
-    "overall_score": 0.85,
-    "text_quality": "high",
-    "table_extraction_success": true,
-    "tables_found": 5,
-    "tables_extracted": 5,
-    "ocr_required": false,
-    "warnings": ["eventuella problem eller osäkerheter"]
+    "key_numbers": [{"label": "beskrivning", "value": "värde", "unit": "enhet", "page": sidnummer}],
+    "tables": [...],
+    "document_metadata": {...},
+    "business_intelligence": {...}
   }
+}
+
+KRITISKT: 
+- "markdown_output" fältet ska innehålla den fullständiga analysen formaterad enligt de markdown-sektioner som specificeras i instruktionerna ovan
+- Använd markdown-syntax: ## för rubriker, **bold**, listor, tabeller etc.
+- "summary" och "keywords" används för databas och sökning
+- "extracted_data" innehåller strukturerad metadata och all detaljerad information
 }`
       : `Analysera detta dokument fokuserat och koncist.
 
@@ -362,9 +470,7 @@ Returnera strukturerad JSON:
       messages: [
         {
           role: 'system',
-          content: isPDF 
-            ? 'Du är en expertanalysassistent för PDF-dokument. Du får PDF-innehåll i text-format. Analysera strukturen, tabeller, och data noggrant. Svara alltid i valid JSON-format.'
-            : 'Du är en dokumentanalysassistent. Svara alltid i JSON-format, koncist och strukturerat.'
+          content: 'Du är en expertanalysassistent för dokument. Du ska analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown. JSON för metadata, Markdown för formaterad presentation.'
         },
         {
           role: 'user',
@@ -424,10 +530,17 @@ Returnera strukturerad JSON:
       } else {
         analysisResult = JSON.parse(contentText);
       }
+      
+      // Validate that we have markdown_output
+      if (!analysisResult.markdown_output) {
+        console.warn('No markdown_output in AI response, using summary as fallback');
+        analysisResult.markdown_output = analysisResult.summary || '';
+      }
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       analysisResult = {
         summary: aiData.choices[0].message.content,
+        markdown_output: aiData.choices[0].message.content,
         keywords: [],
         extracted_data: {}
       };
@@ -450,14 +563,17 @@ Returnera strukturerad JSON:
       return focusMap[type] || focusMap.standard;
     };
 
-    // Save analysis result with processing time
+    // Save analysis result with processing time and markdown output
     const { data: savedResult, error: saveError } = await supabase
       .from('analysis_results')
       .insert({
         document_id: documentId,
         summary: analysisResult.summary,
         keywords: analysisResult.keywords || [],
-        extracted_data: analysisResult.extracted_data || {},
+        extracted_data: {
+          ...analysisResult.extracted_data,
+          markdown_output: analysisResult.markdown_output
+        },
         is_valid: true,
         processing_time: processingTime,
         analysis_type: analysis_type,

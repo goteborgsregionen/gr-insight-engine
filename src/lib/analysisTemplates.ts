@@ -23,7 +23,33 @@ export const ANALYSIS_TEMPLATES: AnalysisTemplate[] = [
     benefits: 'En tidsbesparande sammanfattning, så att GR och kommunerna slipper manuellt läsa och tolka stora datamängder.',
     keywords: ['Sammanfattning', 'Nyckelord', 'Nyckelpunkter'],
     color: 'blue',
-    promptModifier: '',
+    promptModifier: `
+ANALYSTYP: Standard
+MÅL: Ge en sammanhängande översikt av de markerade dokumenten.
+
+INSTRUKTIONER:
+1. Läs och extrahera huvudsyftet med varje dokument.
+2. Identifiera:
+   - Viktiga aktörer (kommuner, avdelningar, projekt).
+   - Centrala mål och prioriteringar.
+   - Viktiga beslut, tidslinjer och resultat.
+3. Sammanfatta centrala budskap och teman.
+4. Sammanfatta om det finns viktiga likheter kontra skillnader kommuner emellan
+
+PRESENTATION:
+- Executive Summary (max 1 A4) för beslutsfattare.
+- Punktlista med de 5–7 viktigaste temana.
+- Tabell med dokument → tema → ansvarig aktör.
+- Kort ordlista över återkommande termer.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Executive Summary
+## Huvudteman
+## Viktiga Aktörer
+## Dokument-Tema-Karta
+## Nyckeltermer
+`,
     focusAreas: ['summary', 'keywords', 'key_points']
   },
   {
@@ -36,12 +62,27 @@ export const ANALYSIS_TEMPLATES: AnalysisTemplate[] = [
     keywords: ['Budgetar', 'Kostnader', 'Ekonomiska nyckeltal', 'Avkastning', 'Finansiella trender'],
     color: 'green',
     promptModifier: `
-EKONOMISKT FOKUS - KRITISKT VIKTIGT:
-- Extrahera ALLA budgetsiffror, kostnader och ekonomiska värden
-- Hitta ALLA KPI:er relaterade till ekonomi och finans
-- Identifiera ROI, cost-benefit, och ekonomiska prognoser
-- Notera år, jämförelsevärden och trender
-- Markera finansiella risker och möjligheter
+ANALYSTYP: Ekonomisk
+MÅL: Analysera budget, kostnader, investeringar och ekonomiska trender.
+
+INSTRUKTIONER:
+1. Extrahera relevanta nyckeltal (kostnad/intäkt per invånare, investeringar, driftkostnader).
+2. Identifiera trender över tid (5–10 år där möjligt).
+3. Jämför mellan kommunerna samt med nationella referenser.
+4. Lyft fram riskområden eller avvikelser.
+5. Koppla ekonomiska insikter till strategiska prioriteringar.
+
+PRESENTATION:
+- Dashboard med KPI:er (använd tabell med indikator, kommun, GR-snitt, trend).
+- Top-5 och Botten-5 kommuner inom centrala indikatorer.
+- Kortfattade rekommendationer (3–5 punkter) för resursprioritering.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Ekonomisk Översikt
+## KPI-Dashboard
+## Trender och Jämförelser
+## Rekommenderade Åtgärder
 `,
     focusAreas: ['budgets', 'costs', 'economic_kpis', 'roi', 'financial_trends']
   },
@@ -55,12 +96,28 @@ EKONOMISKT FOKUS - KRITISKT VIKTIGT:
     keywords: ['Säkerhetsåtgärder', 'Risker', 'Compliance', 'Incidenter', 'Säkerhetskontroller'],
     color: 'red',
     promptModifier: `
-SÄKERHETSFOKUS - KRITISKT VIKTIGT:
-- Identifiera ALLA säkerhetsåtgärder och kontroller
-- Hitta hot-scenarier, risker och sårbarheter
-- Extrahera compliance-krav (GDPR, ISO27001, etc.)
-- Notera säkerhetsincidenter och lärdomar
-- Hitta säkerhetsbudget och resurser
+ANALYSTYP: Säkerhet
+MÅL: Identifiera risker och sårbarheter i dokumenten.
+
+INSTRUKTIONER:
+1. Identifiera risker inom:
+   - IT- och dataskydd.
+   - Drift och fysisk infrastruktur.
+   - Lag- och standardefterlevnad (GDPR, NIS2).
+2. Lista tidigare incidenter eller svagheter.
+3. Föreslå riskminskande åtgärder och prioriteringar.
+
+PRESENTATION:
+- Riskmatris: sannolikhet × konsekvens.
+- Prioriteringslista med risker och föreslagna åtgärder.
+- Statusöversikt över kommunernas efterlevnad av standarder.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Risköversikt
+## Riskmatris
+## Prioriterade Åtgärder
+## Efterlevnadsstatus
 `,
     focusAreas: ['security_measures', 'risks', 'compliance', 'incidents', 'controls']
   },
@@ -93,12 +150,26 @@ STRATEGISKT FOKUS - KRITISKT VIKTIGT:
     keywords: ['Tekniska specifikationer', 'Arkitektur', 'Teknologier', 'Integrationer', 'Teknisk skuld'],
     color: 'blue',
     promptModifier: `
-TEKNISKT FOKUS - KRITISKT VIKTIGT:
-- Extrahera tekniska specifikationer och arkitektur
-- Identifiera teknologier, plattformar och verktyg
-- Hitta tekniska krav och beroenden
-- Notera integrationer och API:er
-- Identifiera tekniska risker och teknisk skuld
+ANALYSTYP: Teknisk
+MÅL: Kartlägga tekniska system och processer för att hitta förbättringspotential.
+
+INSTRUKTIONER:
+1. Identifiera nämnda IT-system och plattformar.
+2. Lista processer som idag hanteras manuellt eller ineffektivt.
+3. Identifiera bristande interoperabilitet och standarder.
+4. Bedöm tekniska risker (föråldrade system, beroenden).
+
+PRESENTATION:
+- Systemlandskap med befintliga system och integrationsbehov.
+- Processkarta med möjligheter för digitalisering/automatisering.
+- Rekommendationslista med prioriterade åtgärder.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## Teknisk Översikt
+## Systemlandskap
+## Processkarta
+## Rekommenderade Åtgärder
 `,
     focusAreas: ['technical_specs', 'architecture', 'technologies', 'integrations', 'technical_debt']
   },
@@ -112,12 +183,26 @@ TEKNISKT FOKUS - KRITISKT VIKTIGT:
     keywords: ['KPI:er', 'Mätetal', 'Målvärden', 'Framgångskriterier', 'Mätfrekvens'],
     color: 'orange',
     promptModifier: `
-KPI-FOKUS - KRITISKT VIKTIGT:
-- Extrahera ALLA mätetal och KPI:er
-- Hitta målvärden, baseline och actual values
-- Identifiera framgångsfaktorer och success criteria
-- Notera mätfrekvens och ansvarsfördelning
-- Hitta dashboards och rapporteringsstrukturer
+ANALYSTYP: KPI & Metrics
+MÅL: Utvärdera prestationer och måluppfyllelse utifrån befintliga data.
+
+INSTRUKTIONER:
+1. Identifiera befintliga KPI:er som rapporteras i dokumenten.
+2. Bedöm måluppfyllelse utifrån tillgängliga data.
+3. Jämför prestationer mellan kommunerna och mot nationella mål.
+4. Föreslå nya KPI:er där mätning saknas.
+
+PRESENTATION:
+- KPI-Dashboard med trafikljusmodell (grön/gul/röd) för måluppfyllelse.
+- Gap-analys som visar saknade indikatorer eller data.
+- Rekommendationer för förbättrad uppföljning.
+
+OUTPUTFORMAT:
+Strukturera i markdown med följande sektioner:
+## KPI-Översikt
+## KPI-Dashboard
+## Gap-Analys
+## Rekommenderade KPI:er
 `,
     focusAreas: ['kpis', 'metrics', 'targets', 'success_criteria', 'measurement_frequency']
   }

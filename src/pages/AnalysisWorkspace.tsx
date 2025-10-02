@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, FileText, Edit2, ArrowLeft, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
+import ReactMarkdown from "react-markdown";
 
 export default function AnalysisWorkspace() {
   const { sessionId } = useParams();
@@ -259,49 +260,64 @@ export default function AnalysisWorkspace() {
             </TabsList>
 
             <TabsContent value="summary" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Översikt</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground leading-relaxed">
-                    {result.summary || 'Ingen sammanfattning tillgänglig'}
-                  </p>
-                </CardContent>
-              </Card>
-
-              {result.key_themes && result.key_themes.length > 0 && (
+              {result.extracted_data?.markdown_output ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Huvudteman</CardTitle>
+                    <CardTitle>Analysresultat</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {result.key_themes.map((theme: string, idx: number) => (
-                        <Badge key={idx} variant="secondary">
-                          {theme}
-                        </Badge>
-                      ))}
-                    </div>
+                  <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+                    <ReactMarkdown>
+                      {result.extracted_data.markdown_output}
+                    </ReactMarkdown>
                   </CardContent>
                 </Card>
-              )}
+              ) : (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Översikt</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-muted-foreground leading-relaxed">
+                        {result.summary || 'Ingen sammanfattning tillgänglig'}
+                      </p>
+                    </CardContent>
+                  </Card>
 
-              {result.keywords && result.keywords.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Nyckelord</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {result.keywords.map((kw: string, idx: number) => (
-                        <Badge key={idx} variant="outline">
-                          {kw}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                  {result.key_themes && result.key_themes.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Huvudteman</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                          {result.key_themes.map((theme: string, idx: number) => (
+                            <Badge key={idx} variant="secondary">
+                              {theme}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {result.keywords && result.keywords.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Nyckelord</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                          {result.keywords.map((kw: string, idx: number) => (
+                            <Badge key={idx} variant="outline">
+                              {kw}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
               )}
             </TabsContent>
 
