@@ -28,7 +28,8 @@ import {
   Code,
   BarChart,
   Edit,
-  Check
+  Check,
+  Info
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
@@ -45,6 +46,7 @@ export default function Analysis() {
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   const [editingPromptFor, setEditingPromptFor] = useState<string | null>(null);
+  const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   // Fetch documents
@@ -152,6 +154,7 @@ export default function Analysis() {
   };
 
   const editingTemplate = editingPromptFor ? getTemplateById(editingPromptFor) : null;
+  const infoTemplate = showInfoFor ? getTemplateById(showInfoFor) : null;
 
   const handleStartAnalysis = () => {
     startAnalysisMutation.mutate();
@@ -399,13 +402,17 @@ export default function Analysis() {
                         <p className="text-xs text-muted-foreground">
                           {template.description}
                         </p>
-                        <div className="flex flex-wrap gap-1 justify-center">
-                          {template.focusAreas.map((area) => (
-                            <Badge key={area} variant="secondary" className="text-xs">
-                              {area}
-                            </Badge>
-                          ))}
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="absolute bottom-2 right-2 h-8 w-8 p-0 opacity-60 hover:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowInfoFor(template.id);
+                          }}
+                        >
+                          <Info className="h-4 w-4 text-muted-foreground" />
+                        </Button>
                       </CardContent>
                     </Card>
                   );
@@ -454,6 +461,60 @@ export default function Analysis() {
           </Card>
         )}
       </div>
+
+      {/* Info Dialog */}
+      <Dialog open={showInfoFor !== null} onOpenChange={(open) => !open && setShowInfoFor(null)}>
+        <DialogContent className="max-w-2xl">
+          {infoTemplate && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {(() => {
+                    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+                      'FileSearch': FileSearch,
+                      'DollarSign': DollarSign,
+                      'Shield': Shield,
+                      'Target': Target,
+                      'Code': Code,
+                      'BarChart': BarChart,
+                    };
+                    const Icon = iconMap[infoTemplate.icon] || FileSearch;
+                    return <Icon className="h-5 w-5" />;
+                  })()}
+                  {infoTemplate.name}
+                </DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Bakgrund och syfte</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {infoTemplate.fullDescription}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Mervärde</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {infoTemplate.benefits}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Fokusområden</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {infoTemplate.keywords.map((keyword) => (
+                      <Badge key={keyword} variant="outline">
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Prompt Editor Dialog */}
       <Dialog open={editingPromptFor !== null} onOpenChange={(open) => !open && setEditingPromptFor(null)}>

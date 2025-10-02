@@ -5,6 +5,9 @@ export interface AnalysisTemplate {
   name: string;
   icon: string;
   description: string;
+  fullDescription: string;
+  benefits: string;
+  keywords: string[];
   color: string;
   promptModifier: string;
   focusAreas: string[];
@@ -13,9 +16,12 @@ export interface AnalysisTemplate {
 export const ANALYSIS_TEMPLATES: AnalysisTemplate[] = [
   {
     id: 'standard',
-    name: 'Standard Analys',
+    name: 'Standardanalys',
     icon: 'FileSearch',
     description: 'Grundläggande analys av dokument',
+    fullDescription: 'Standardanalysen är grunden för all vidare analys. Den ger en övergripande sammanställning och orientering av det material som laddats upp. Syftet är att snabbt förstå innehållet, hitta de mest relevanta delarna och skapa en gemensam kunskapsbas som beslutsfattare kan utgå från.',
+    benefits: 'En tidsbesparande sammanfattning, så att GR och kommunerna slipper manuellt läsa och tolka stora datamängder.',
+    keywords: ['Sammanfattning', 'Nyckelord', 'Nyckelpunkter'],
     color: 'blue',
     promptModifier: '',
     focusAreas: ['summary', 'keywords', 'key_points']
@@ -25,6 +31,9 @@ export const ANALYSIS_TEMPLATES: AnalysisTemplate[] = [
     name: 'Ekonomisk Analys',
     icon: 'DollarSign',
     description: 'Fokus på budgetar, kostnader och ekonomiska KPI:er',
+    fullDescription: 'Ekonomisk analys visar hur resurser fördelas, trender över tid och jämförelser mellan kommuner och nationella nivåer. Analysen fokuserar på att identifiera alla budgetsiffror, kostnader och ekonomiska värden i dokumenten.',
+    benefits: 'Ger GR och kommunerna ett datadrivet beslutsunderlag för budgetprioriteringar, effektiv resursanvändning och tidig upptäckt av risker eller avvikelser.',
+    keywords: ['Budgetar', 'Kostnader', 'Ekonomiska nyckeltal', 'Avkastning', 'Finansiella trender'],
     color: 'green',
     promptModifier: `
 EKONOMISKT FOKUS - KRITISKT VIKTIGT:
@@ -41,6 +50,9 @@ EKONOMISKT FOKUS - KRITISKT VIKTIGT:
     name: 'Säkerhetsanalys',
     icon: 'Shield',
     description: 'Cybersäkerhet, risker och compliance',
+    fullDescription: 'Säkerhetsanalysen hjälper GR och kommunerna att förstå risker och sårbarheter, både fysiska och digitala. Den identifierar alla säkerhetsåtgärder, hot-scenarier och compliance-krav i dokumenten.',
+    benefits: 'Skapar en förebyggande riskhantering och stärker kommunernas motståndskraft mot hot som kan påverka drift, data och invånarnas trygghet.',
+    keywords: ['Säkerhetsåtgärder', 'Risker', 'Compliance', 'Incidenter', 'Säkerhetskontroller'],
     color: 'red',
     promptModifier: `
 SÄKERHETSFOKUS - KRITISKT VIKTIGT:
@@ -57,6 +69,9 @@ SÄKERHETSFOKUS - KRITISKT VIKTIGT:
     name: 'Strategisk Analys',
     icon: 'Target',
     description: 'Mål, vision och långsiktig planering',
+    fullDescription: 'Strategisk analys fokuserar på de långsiktiga prioriteringarna i dokumenten: vilka mål, fokusområden och förändringsbehov som framträder. Analysen identifierar vision, mission och övergripande mål.',
+    benefits: 'Hjälper GR att sätta regionala prioriteringar, identifiera gap mellan lokala och regionala ambitioner samt skapa underlag för policyutveckling och samverkansprojekt.',
+    keywords: ['Vision', 'Mål', 'Strategiska initiativ', 'Milstolpar', 'Konkurrensfördelar'],
     color: 'purple',
     promptModifier: `
 STRATEGISKT FOKUS - KRITISKT VIKTIGT:
@@ -73,6 +88,9 @@ STRATEGISKT FOKUS - KRITISKT VIKTIGT:
     name: 'Teknisk Analys',
     icon: 'Code',
     description: 'Tekniska specifikationer, arkitektur och implementation',
+    fullDescription: 'Teknisk analys fokuserar på system, infrastruktur och processer som dokumenten beskriver. Den extraherar tekniska specifikationer, arkitektur och identifierar teknologier, plattformar och verktyg.',
+    benefits: 'Upptäcker ineffektivitet, tekniska brister och digitaliseringsmöjligheter, vilket kan bidra till en modernare och mer kostnadseffektiv förvaltning.',
+    keywords: ['Tekniska specifikationer', 'Arkitektur', 'Teknologier', 'Integrationer', 'Teknisk skuld'],
     color: 'blue',
     promptModifier: `
 TEKNISKT FOKUS - KRITISKT VIKTIGT:
@@ -89,6 +107,9 @@ TEKNISKT FOKUS - KRITISKT VIKTIGT:
     name: 'KPI & Metrics',
     icon: 'BarChart',
     description: 'Mätetal, framgångsfaktorer och performance indicators',
+    fullDescription: 'KPI- och metricsanalysen mäter måluppfyllelse och resultat i relation till strategiska och operativa mål. Den extraherar alla mätetal, KPI:er och identifierar framgångsfaktorer.',
+    benefits: 'Skapar en mätbar och jämförbar bild av framsteg, vilket stödjer evidensbaserade beslut och prioriteringar.',
+    keywords: ['KPI:er', 'Mätetal', 'Målvärden', 'Framgångskriterier', 'Mätfrekvens'],
     color: 'orange',
     promptModifier: `
 KPI-FOKUS - KRITISKT VIKTIGT:
