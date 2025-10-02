@@ -24,7 +24,7 @@ export default function AnalysisWorkspace() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
 
-  // Fetch session
+  // Fetch session with polling for processing status
   const { data: session, isLoading } = useQuery({
     queryKey: ['analysis-session', sessionId],
     queryFn: async () => {
@@ -36,6 +36,10 @@ export default function AnalysisWorkspace() {
 
       if (error) throw error;
       return data;
+    },
+    refetchInterval: (query) => {
+      // Poll every 3 seconds if status is 'processing'
+      return query.state.data?.status === 'processing' ? 3000 : false;
     },
   });
 
@@ -139,6 +143,50 @@ export default function AnalysisWorkspace() {
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Show loading state while processing
+  if (session?.status === 'processing') {
+    return (
+      <MainLayout>
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/analysis')}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Tillbaka till analys
+            </Button>
+          </div>
+          
+          <Card>
+            <CardContent className="py-16">
+              <div className="flex flex-col items-center justify-center space-y-6">
+                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <div className="text-center space-y-2">
+                  <h2 className="text-2xl font-semibold">Analyserar dokument...</h2>
+                  <p className="text-muted-foreground max-w-md">
+                    AI:n arbetar med dina {session.document_ids.length} dokument. 
+                    Detta kan ta några minuter beroende på dokumentens storlek och komplexitet.
+                  </p>
+                </div>
+                <div className="w-full max-w-md">
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full bg-primary animate-pulse" style={{ width: '60%' }} />
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2 text-center">
+                    Sidan uppdateras automatiskt när analysen är klar
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </MainLayout>
     );

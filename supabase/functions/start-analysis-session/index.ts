@@ -52,71 +52,19 @@ serve(async (req) => {
       });
     }
 
-    // Get analysis results for these documents
-    const { data: analysisResults, error: analysisError } = await supabase
-      .from('analysis_results')
-      .select('*')
-      .in('document_id', documentIds);
-
-    if (analysisError) {
-      console.error('Error fetching analysis results:', analysisError);
-      return new Response(JSON.stringify({ error: 'Failed to fetch analysis results' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Build analysis result based on type
-    let analysisResult: any = {};
-
-    if (documentIds.length > 1) {
-      // Multi-document comparison
-      analysisResult = {
-        type: 'comparison',
-        documents: documents.map(doc => ({
-          id: doc.id,
-          title: doc.title,
-          file_name: doc.file_name,
-        })),
-        summary: `Jämförelse av ${documents.length} dokument med ${analysisType} perspektiv`,
-        similarities: [],
-        differences: [],
-        key_themes: [],
-        recommendations: [],
-      };
-
-      // Extract data from analysis results
-      if (analysisResults && analysisResults.length > 0) {
-        const allKeywords = analysisResults.flatMap(r => r.keywords || []);
-        const uniqueKeywords = [...new Set(allKeywords)];
-        analysisResult.key_themes = uniqueKeywords.slice(0, 10);
-
-        const allSummaries = analysisResults.map(r => r.summary).filter(Boolean);
-        if (allSummaries.length > 0) {
-          analysisResult.summary = `Analysen omfattar ${documents.length} dokument. ${allSummaries[0]}`;
-        }
-      }
-    } else {
-      // Single document analysis
-      const docAnalysis = analysisResults?.find(r => r.document_id === documentIds[0]);
-      analysisResult = {
-        type: 'single',
-        document: {
-          id: documents[0].id,
-          title: documents[0].title,
-          file_name: documents[0].file_name,
-        },
-        summary: docAnalysis?.summary || 'Ingen analys tillgänglig',
-        keywords: docAnalysis?.keywords || [],
-        extracted_data: docAnalysis?.extracted_data || {},
-        key_findings: [],
-        recommendations: [],
-      };
-    }
-
-    // Create session
+    // Create session with status 'processing'
     const sessionTitle = title || `Analys av ${documents.length} dokument - ${new Date().toLocaleDateString('sv-SE')}`;
     
+    const initialResult = {
+      type: documentIds.length > 1 ? 'comparison' : 'single',
+      documents: documents.map(doc => ({
+        id: doc.id,
+        title: doc.title,
+        file_name: doc.file_name,
+      })),
+      summary: `Analyserar ${documents.length} dokument...`,
+    };
+
     const { data: session, error: sessionError } = await supabase
       .from('analysis_sessions')
       .insert({
@@ -125,8 +73,8 @@ serve(async (req) => {
         document_ids: documentIds,
         analysis_type: analysisType || 'standard',
         custom_prompt: customPrompt,
-        analysis_result: analysisResult,
-        status: 'draft',
+        analysis_result: initialResult,
+        status: 'processing',
       })
       .select()
       .single();
@@ -139,7 +87,32 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Analysis session created: ${session.id}`);
+    console.log(`Analysis session created: ${session.id} (status: processing)`);
+
+    // Add documents to analysis queue
+    console.log(`Adding ${documentIds.length} documents to analysis queue...`);
+    for (const docId of documentIds) {
+      const { error: queueError } = await supabase
+        .from('analysis_queue')
+        .insert({
+          user_id: user.id,
+          document_id: docId,
+          status: 'pending',
+          priority: 10,
+        });
+
+      if (queueError) {
+        console.error('Error adding to queue:', queueError);
+      }
+    }
+
+    // Trigger process-analysis-queue in background
+    console.log('Triggering process-analysis-queue...');
+    supabase.functions.invoke('process-analysis-queue').then(() => {
+      console.log('Queue processing triggered');
+    }).catch((err) => {
+      console.error('Failed to trigger queue processing:', err);
+    });
 
     return new Response(JSON.stringify({ 
       sessionId: session.id,

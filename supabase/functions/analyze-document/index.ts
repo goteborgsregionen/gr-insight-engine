@@ -607,6 +607,78 @@ Returnera strukturerad JSON:
 
     console.log('Analysis complete:', savedResult.id);
 
+    // Check if this document is part of any processing sessions
+    const { data: sessions } = await supabase
+      .from('analysis_sessions')
+      .select('id, document_ids, analysis_type, custom_prompt, title')
+      .contains('document_ids', [documentId])
+      .eq('status', 'processing');
+
+    if (sessions && sessions.length > 0) {
+      for (const session of sessions) {
+        // Check if all documents in the session are analyzed
+        const { data: allResults, error: resultsError } = await supabase
+          .from('analysis_results')
+          .select('*')
+          .in('document_id', session.document_ids)
+          .eq('is_valid', true);
+
+        if (!resultsError && allResults && allResults.length === session.document_ids.length) {
+          // All documents are analyzed - update session
+          console.log(`All documents analyzed for session ${session.id}, updating status...`);
+
+          // Fetch document info for the aggregated result
+          const { data: sessionDocs } = await supabase
+            .from('documents')
+            .select('id, title, file_name')
+            .in('id', session.document_ids);
+
+          // Build aggregated result
+          const aggregatedResult: any = {
+            type: session.document_ids.length > 1 ? 'comparison' : 'single',
+            documents: sessionDocs || [],
+          };
+
+          if (session.document_ids.length === 1) {
+            // Single document
+            const result = allResults[0];
+            aggregatedResult.document = sessionDocs?.[0];
+            aggregatedResult.summary = result.summary;
+            aggregatedResult.keywords = result.keywords;
+            aggregatedResult.extracted_data = result.extracted_data;
+          } else {
+            // Multiple documents - combine results
+            const allKeywords = allResults.flatMap(r => r.keywords || []);
+            const uniqueKeywords = [...new Set(allKeywords)];
+            
+            aggregatedResult.summary = `Analys av ${session.document_ids.length} dokument slutförd. ${allResults[0]?.summary || ''}`;
+            aggregatedResult.keywords = uniqueKeywords.slice(0, 15);
+            aggregatedResult.key_themes = uniqueKeywords.slice(0, 10);
+            aggregatedResult.extracted_data = {
+              results: allResults.map(r => ({
+                document_id: r.document_id,
+                summary: r.summary,
+                keywords: r.keywords,
+                markdown_output: r.extracted_data?.markdown_output
+              }))
+            };
+          }
+
+          // Update session
+          await supabase
+            .from('analysis_sessions')
+            .update({
+              status: 'completed',
+              analysis_result: aggregatedResult,
+              completed_at: new Date().toISOString(),
+            })
+            .eq('id', session.id);
+
+          console.log(`Session ${session.id} marked as completed`);
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
