@@ -88,7 +88,8 @@ export default function Analysis() {
           documentIds: selectedDocs,
           analysisType: selectedTemplates.join(','),
           customPrompt: combinedPrompt,
-          title: `Analys ${new Date().toLocaleDateString('sv-SE')}`
+          title: `Analys ${new Date().toLocaleDateString('sv-SE')}`,
+          analysisTemplates: ANALYSIS_TEMPLATES
         },
       });
 

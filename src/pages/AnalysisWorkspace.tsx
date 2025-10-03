@@ -501,8 +501,20 @@ export default function AnalysisWorkspace() {
             </TabsList>
 
             <TabsContent value="summary" className="space-y-4">
-              {/* Show partial results while processing */}
-              {isProcessing && hasPartialResults && (
+              {/* Strategic Aggregated Analysis */}
+              {result?.type === 'strategic_aggregation' && result.full_markdown_output && !isProcessing ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Strategisk Jämförelseanalys</CardTitle>
+                    <CardDescription>
+                      Aggregerad analys av {result.document_count} dokument
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="prose prose-sm max-w-none dark:prose-invert">
+                    <ReactMarkdown>{result.full_markdown_output}</ReactMarkdown>
+                  </CardContent>
+                </Card>
+              ) : isProcessing && hasPartialResults ? (
                 <>
                   {individualResults.map((result) => (
                     <Card key={result.id}>
@@ -520,10 +532,7 @@ export default function AnalysisWorkspace() {
                     </Card>
                   ))}
                 </>
-              )}
-
-              {/* Show complete results */}
-              {!isProcessing && result.extracted_data?.markdown_output ? (
+              ) : !isProcessing && result.extracted_data?.markdown_output ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Analysresultat</CardTitle>
@@ -534,7 +543,7 @@ export default function AnalysisWorkspace() {
                     </ReactMarkdown>
                   </CardContent>
                 </Card>
-              ) : !isProcessing && (
+              ) : !isProcessing ? (
                 <>
                   <Card>
                     <CardHeader>
@@ -579,13 +588,55 @@ export default function AnalysisWorkspace() {
                         </div>
                       </CardContent>
                     </Card>
-                  )}
+                   )}
                 </>
-              )}
+              ) : null}
             </TabsContent>
 
             <TabsContent value="details" className="space-y-4">
-              {result.similarities && result.similarities.length > 0 && (
+              {/* Strategic aggregated details */}
+              {result?.type === 'strategic_aggregation' && individualResults && individualResults.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Detaljer per dokument</h3>
+                  <div className="space-y-4">
+                    {individualResults.map((indResult: any) => {
+                      const doc = result.documents?.find((d: any) => d.id === indResult.document_id);
+                      return (
+                        <Card key={indResult.id}>
+                          <CardHeader>
+                            <CardTitle className="text-base">{doc?.title || doc?.file_name}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {indResult.summary && (
+                              <div>
+                                <h4 className="font-semibold text-sm mb-1">Sammanfattning</h4>
+                                <p className="text-sm text-muted-foreground">{indResult.summary}</p>
+                              </div>
+                            )}
+                            {indResult.keywords && indResult.keywords.length > 0 && (
+                              <div>
+                                <h4 className="font-semibold text-sm mb-1">Nyckelord</h4>
+                                <div className="flex flex-wrap gap-1">
+                                  {indResult.keywords.map((keyword: string, idx: number) => (
+                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                      {keyword}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Standard details for non-strategic */}
+              {(!result?.type || result?.type !== 'strategic_aggregation') && (
+                <>
+                  {result.similarities && result.similarities.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Likheter</CardTitle>
@@ -618,39 +669,7 @@ export default function AnalysisWorkspace() {
                   </CardContent>
                 </Card>
               )}
-
-              {result.recommendations && result.recommendations.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Rekommendationer</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {result.recommendations.map((item: string, idx: number) => (
-                        <li key={idx} className="text-sm text-muted-foreground">
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-
-              {result.key_findings && result.key_findings.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Viktiga fynd</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {result.key_findings.map((item: string, idx: number) => (
-                        <li key={idx} className="text-sm text-muted-foreground">
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
+                </>
               )}
             </TabsContent>
 

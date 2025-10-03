@@ -120,6 +120,99 @@ serve(async (req) => {
 
     console.log(`Queue processing complete: ${successful} successful, ${failed} failed`);
 
+    // After processing, check if any sessions are now complete and need aggregation
+    try {
+      const processedDocIds = results
+        .filter((r): r is PromiseFulfilledResult<{ success: boolean; id: any; error?: string }> => 
+          r.status === 'fulfilled' && r.value.success
+        )
+        .map(r => r.value.id)
+        .filter(Boolean);
+
+      if (processedDocIds.length > 0) {
+        console.log('Checking for completed sessions...');
+        
+        // Find analysis sessions that contain these documents
+        const { data: sessions, error: sessionsError } = await supabase
+          .from('analysis_sessions')
+          .select('*')
+          .eq('status', 'processing');
+
+        if (!sessionsError && sessions) {
+          for (const session of sessions) {
+            // Check if session contains any of the processed documents
+            const hasProcessedDocs = session.document_ids.some((id: string) => 
+              queueItems.some(qi => qi.document_id === id)
+            );
+
+            if (!hasProcessedDocs) continue;
+
+            // Check if all documents in the session are analyzed
+            const { data: sessionQueue, error: queueError } = await supabase
+              .from('analysis_queue')
+              .select('status')
+              .in('document_id', session.document_ids);
+
+            if (!queueError && sessionQueue) {
+              const allCompleted = sessionQueue.every((q: any) => q.status === 'completed');
+              const anyFailed = sessionQueue.some((q: any) => q.status === 'failed');
+
+              if (allCompleted && session.analysis_type === 'strategic') {
+                // Trigger strategic aggregation
+                console.log(`All documents completed for session ${session.id}, triggering strategic aggregation`);
+                
+                const { error: aggregateError } = await supabase.functions.invoke(
+                  'aggregate-strategic-analysis',
+                  {
+                    body: { sessionId: session.id }
+                  }
+                );
+
+                if (aggregateError) {
+                  console.error(`Failed to trigger aggregation for session ${session.id}:`, aggregateError);
+                } else {
+                  console.log(`Strategic aggregation triggered for session ${session.id}`);
+                }
+              } else if (allCompleted || (anyFailed && sessionQueue.filter((q: any) => q.status === 'completed').length > 0)) {
+                // For non-strategic analysis or partial completion, mark as completed
+                console.log(`Marking session ${session.id} as completed (non-strategic or partial)`);
+                
+                const { data: results } = await supabase
+                  .from('analysis_results')
+                  .select('*')
+                  .in('document_id', session.document_ids);
+
+                const aggregatedResult = {
+                  type: session.document_ids.length > 1 ? 'comparison' : 'single',
+                  documents: session.document_ids,
+                  results: results || [],
+                  summary: results?.[0]?.summary || '',
+                  keywords: [...new Set(results?.flatMap((r: any) => r.keywords || []))],
+                  completed_at: new Date().toISOString(),
+                  partial: anyFailed,
+                  failed_count: sessionQueue.filter((q: any) => q.status === 'failed').length,
+                  completed_count: results?.length || 0,
+                  total_count: session.document_ids.length,
+                };
+
+                await supabase
+                  .from('analysis_sessions')
+                  .update({
+                    status: 'completed',
+                    analysis_result: aggregatedResult,
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq('id', session.id);
+              }
+            }
+          }
+        }
+      }
+    } catch (aggregationError) {
+      console.error('Error during session aggregation check:', aggregationError);
+      // Don't fail the whole function if aggregation check fails
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

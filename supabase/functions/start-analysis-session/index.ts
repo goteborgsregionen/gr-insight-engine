@@ -27,7 +27,7 @@ serve(async (req) => {
       });
     }
 
-    const { documentIds, analysisType, customPrompt, title } = await req.json();
+    const { documentIds, analysisType, customPrompt, title, analysisTemplates } = await req.json();
 
     if (!documentIds || documentIds.length === 0) {
       return new Response(JSON.stringify({ error: 'No documents provided' }), {
@@ -52,6 +52,19 @@ serve(async (req) => {
       });
     }
 
+    // Build the complete prompt using templates
+    let fullPrompt = customPrompt || '';
+    
+    // If analysisType is strategic, use the full strategic template
+    if (analysisType === 'strategic' && analysisTemplates) {
+      const strategicTemplate = analysisTemplates.find((t: any) => t.id === 'strategic');
+      if (strategicTemplate?.promptModifier) {
+        fullPrompt = strategicTemplate.promptModifier + (customPrompt ? `\n\n${customPrompt}` : '');
+      }
+    } else if (customPrompt) {
+      fullPrompt = customPrompt;
+    }
+
     // Create session with status 'processing'
     const sessionTitle = title || `Analys av ${documents.length} dokument - ${new Date().toLocaleDateString('sv-SE')}`;
     
@@ -72,7 +85,7 @@ serve(async (req) => {
         title: sessionTitle,
         document_ids: documentIds,
         analysis_type: analysisType || 'standard',
-        custom_prompt: customPrompt,
+        custom_prompt: fullPrompt || null,
         analysis_result: initialResult,
         status: 'processing',
       })
