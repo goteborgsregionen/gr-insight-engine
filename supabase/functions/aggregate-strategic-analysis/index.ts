@@ -72,49 +72,104 @@ serve(async (req) => {
 
     // Prepare the comprehensive prompt for strategic aggregation
     const strategicPromptTemplate = `
+Du är en expert på strategisk policyanalys och ska skapa en omfattande strategisk jämförelseanalys.
+
 ANALYSTYP: Strategisk Jämförelseanalys
 
-MÅL: Identifiera långsiktiga mål och strategiska prioriteringar i dokumenten genom att analysera ALLA dokument tillsammans.
+MÅL: 
+Identifiera långsiktiga mål och strategiska prioriteringar genom att analysera ALLA dokument tillsammans. 
+Skapa en samlad strategisk översikt som visar mönster, synergier och gap mellan dokumenten.
 
 INSTRUKTIONER:
-1. Identifiera övergripande mål och visioner i dokumenten.
-2. Kartlägg gemensamma fokusområden för kommunerna.
-3. Jämför mot nationella strategier och EU-agendor där relevant.
-4. Identifiera gap mellan lokala och regionala mål.
-5. Lista möjligheter till samarbete och hinder som nämns.
+1. **Strategisk Översikt**: Ge en omfattande sammanfattning (minst 200 ord) som visar:
+   - Den samlade riktningen i alla dokument
+   - Hur dokumenten kompletterar och förstärker varandra
+   - Övergripande målbilder och visioner
+   - Kopplingar till nationella strategier, EU-agendor och Agenda 2030
 
-PRESENTATION:
-- Strategisk Målkarta: lista av teman → mål → indikatorer.
-- Gap-Analys: tabell med skillnader mellan kommuners och regionens/nationens mål.
-- Rekommenderade Fokusområden (3–5 punkter) för GR.
+2. **Gemensamma Fokusområden**: Identifiera 5-7 huvudsakliga tematiska områden som går igen:
+   - För varje område: ge en detaljerad beskrivning (minst 50 ord)
+   - Lista vilka specifika dokument som tar upp området (med dokumentnamn)
+   - Beskriv hur olika dokument belyser området ur olika perspektiv
+   Exempel på områden: grön omställning, digitalisering, kompetensförsörjning, inkludering, samverkan, resiliens
+
+3. **Strategisk Målkarta**: Skapa en strukturerad lista med format:
+   **Tema** → Konkreta mål → Mätbara indikatorer
+   
+   För varje tema:
+   - Lista 2-4 konkreta mål
+   - Ge 2-3 föreslagna indikatorer för uppföljning
+   - Ange vilka dokument målen kommer ifrån
+   
+   Exempel:
+   **Grön omställning** → Klimatneutralitet/utsläppsminskning → utsläpp per capita, andel förnybar energi (📄 RUS, 📄 Nationell strategi)
+
+4. **Gap-Analys**: Skapa en FAKTISK TABELL i markdown-format:
+   
+   | Område | Lokal kommunnivå | Regional/Nationell/EU-nivå | Identifierat gap |
+   |--------|------------------|----------------------------|------------------|
+   | [exempel: Klimat & energi] | [beskriv lokal nivå från dokumenten] | [beskriv regional/nationell nivå från dokumenten] | [beskriv konkreta gap: kapacitet, finansiering, kompetens, etc.] |
+   
+   Skapa minst 5-7 rader med konkreta gap baserade på dokumentens innehåll.
+   Var specifik om vilka typer av gap det är (genomförandegap, resursgap, kompetensgap, etc.)
+
+5. **Rekommenderade Fokusområden för GR**: Lista 3-5 prioriterade fokusområden med följande struktur för varje:
+   
+   **[Nummer]. [Tydlig rubrik]** – [kort beskrivning av vad det handlar om]
+   
+   [Längre förklaring (minst 100 ord per rekommendation) som inkluderar:]
+   - Varför detta är viktigt (med dokumentreferens, t.ex. 📄 Dokumentnamn)
+   - Konkreta förslag på åtgärder och initiativ
+   - Vilka aktörer som bör involveras
+   - Koppling till identifierade gap
+   - Förväntade resultat/effekter
 
 OUTPUTFORMAT:
-Strukturera analysen i markdown med följande sektioner:
+Din analys MÅSTE följa denna markdown-struktur:
 
 ## Strategisk Översikt
-En samlad bild av alla dokuments riktning och prioriteringar.
+[Omfattande översiktstext på minst 200 ord]
 
 ## Gemensamma Fokusområden
-Lista tematiska områden som går igen i flera dokument, med referenser till specifika dokument.
+**[Område 1]** – [Detaljerad beskrivning med dokumentreferenser]
+📄 [Dokumentnamn], 📄 [Dokumentnamn]
 
-## Strategisk Målkarta
-Teman → Mål → Indikatorer i tabellformat eller strukturerad lista.
+**[Område 2]** – [Detaljerad beskrivning med dokumentreferenser]
+...
+
+## Strategisk Målkarta (teman → mål → indikatorer)
+**[Tema 1]** → [Mål] → [Indikatorer]
+📄 [Dokumentreferens]
+
+**[Tema 2]** → [Mål] → [Indikatorer]
+...
 
 ## Gap-Analys
-Tabell som visar skillnader mellan lokal/regional/nationell nivå:
-| Område | Lokal nivå | Regional/Nationell/EU-nivå | Identifierat gap |
+| Område | Lokal kommunnivå | Regional/Nationell/EU-nivå | Identifierat gap |
+|--------|------------------|----------------------------|------------------|
+| [Område 1] | [Beskrivning] | [Beskrivning] | [Konkret gap] |
+| [Område 2] | [Beskrivning] | [Beskrivning] | [Konkret gap] |
+...
 
-## Rekommenderade Fokusområden
-3-5 konkreta fokusområden för Göteborgsregionen med motiveringar.
+## Rekommenderade Fokusområden för GR (3–5)
+**1. [Rubrik]** – [Kort beskrivning]
+
+[Längre förklaring med varför, vad, hur, vilka, och dokumentreferenser]
+📄 [Dokumentnamn], 📄 [Dokumentnamn]
+
+**2. [Rubrik]** – [Kort beskrivning]
+...
 
 ---
 
-KRITISKT VIKTIGT:
-- Analysera dokumenten TILLSAMMANS, inte separat
-- Leta efter mönster, motsättningar och synergier mellan dokumenten
-- Ge konkreta, handlingsbara rekommendationer
-- Referera specifika dokument när du nämner information
-- Använd tabeller och strukturerad data där det är relevant
+KRITISKA KVALITETSKRAV:
+✅ Varje sektion ska vara omfattande och detaljerad (inte korta punktlistor)
+✅ Gap-analysen MÅSTE vara en faktisk markdown-tabell med |
+✅ Alla påståenden ska referera till specifika dokument med 📄 emoji
+✅ Rekommendationerna ska vara handlingsbara med konkreta åtgärdsförslag
+✅ Texten ska vara professionell, tvärsektoriell och strategiskt tänkande
+✅ Totalt minst 1500 ord för hela analysen
+✅ Använd dokumentens faktiska innehåll, inte generiska formuleringar
 `;
 
     // Build the comprehensive context from all individual analyses
@@ -175,52 +230,74 @@ KRITISKT VIKTIGT:
             type: 'function',
             function: {
               name: 'create_strategic_analysis',
-              description: 'Skapa en strukturerad strategisk analys',
+              description: 'Skapa en omfattande strategisk jämförelseanalys med alla obligatoriska sektioner',
               parameters: {
                 type: 'object',
                 properties: {
                   strategic_overview: {
                     type: 'string',
-                    description: 'Strategisk översikt av alla dokument'
+                    description: 'OMFATTANDE strategisk översikt (minst 200 ord) som beskriver den samlade riktningen i alla dokument, hur de kompletterar varandra, övergripande målbilder och kopplingar till nationella/EU-strategier'
                   },
                   common_focus_areas: {
                     type: 'array',
                     items: {
                       type: 'object',
                       properties: {
-                        area: { type: 'string' },
-                        description: { type: 'string' },
-                        documents: { type: 'array', items: { type: 'string' } }
-                      }
+                        area: { 
+                          type: 'string',
+                          description: 'Namnet på fokusområdet (t.ex. "Grön omställning & elektrifiering")'
+                        },
+                        description: { 
+                          type: 'string',
+                          description: 'DETALJERAD beskrivning av området (minst 50 ord) som förklarar hur olika dokument belyser det'
+                        },
+                        documents: { 
+                          type: 'array', 
+                          items: { type: 'string' },
+                          description: 'Lista med dokumentnamn som tar upp detta område'
+                        }
+                      },
+                      required: ['area', 'description', 'documents']
                     },
-                    description: 'Gemensamma fokusområden'
+                    description: '5-7 huvudsakliga gemensamma fokusområden med detaljerade beskrivningar'
                   },
                   strategic_goals_map: {
                     type: 'string',
-                    description: 'Strategisk målkarta i markdown-tabellformat'
+                    description: 'Strategisk målkarta i markdown-format med struktur: **Tema** → Mål → Indikatorer. Inkludera dokumentreferenser med 📄 emoji. Minst 5-7 olika teman.'
                   },
                   gap_analysis: {
                     type: 'string',
-                    description: 'Gap-analys i markdown-tabellformat'
+                    description: 'FAKTISK markdown-tabell med | som avgränsare. Format: | Område | Lokal kommunnivå | Regional/Nationell/EU-nivå | Identifierat gap |. Minst 5-7 rader med konkreta, detaljerade gap baserade på dokumentens faktiska innehåll. Var specifik om gap-typer (genomförandegap, resursgap, kompetensgap, etc.)'
                   },
                   recommended_focus_areas: {
                     type: 'array',
                     items: {
                       type: 'object',
                       properties: {
-                        title: { type: 'string' },
-                        description: { type: 'string' },
-                        motivation: { type: 'string' }
-                      }
+                        title: { 
+                          type: 'string',
+                          description: 'Tydlig, handlingsbar rubrik för rekommendationen'
+                        },
+                        description: { 
+                          type: 'string',
+                          description: 'OMFATTANDE beskrivning (minst 100 ord) som inkluderar: varför det är viktigt, konkreta åtgärdsförslag, vilka aktörer som bör involveras, koppling till identifierade gap, förväntade resultat'
+                        },
+                        motivation: { 
+                          type: 'string',
+                          description: 'Dokumentreferenser som stödjer denna rekommendation (med 📄 emoji)'
+                        }
+                      },
+                      required: ['title', 'description', 'motivation']
                     },
-                    description: '3-5 rekommenderade fokusområden'
+                    description: '3-5 prioriterade, detaljerade och handlingsbara fokusområden för Göteborgsregionen'
                   },
                   full_markdown_output: {
                     type: 'string',
-                    description: 'Komplett analys i markdown-format enligt mallen'
+                    description: 'KOMPLETT, PROFESSIONELL analys i markdown-format enligt exakt den mall som specificerats. MÅSTE innehålla ALLA sektioner: ## Strategisk Översikt, ## Gemensamma Fokusområden, ## Strategisk Målkarta, ## Gap-Analys (med faktisk tabell), ## Rekommenderade Fokusområden. Totalt minst 1500 ord. Använd 📄 emoji för dokumentreferenser genomgående.'
                   }
                 },
-                required: ['strategic_overview', 'common_focus_areas', 'gap_analysis', 'recommended_focus_areas', 'full_markdown_output']
+                required: ['strategic_overview', 'common_focus_areas', 'strategic_goals_map', 'gap_analysis', 'recommended_focus_areas', 'full_markdown_output'],
+                additionalProperties: false
               }
             }
           }
