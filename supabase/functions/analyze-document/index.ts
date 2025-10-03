@@ -503,7 +503,47 @@ Returnera strukturerad JSON:
             }
           ]
         }
-      ]
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "analyze_document",
+            description: "Return structured document analysis with markdown output and extracted data.",
+            parameters: {
+              type: "object",
+              properties: {
+                markdown_output: { 
+                  type: "string",
+                  description: "Complete markdown formatted analysis"
+                },
+                summary: { 
+                  type: "string",
+                  description: "Brief summary of the document"
+                },
+                keywords: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "10-15 key terms from the document"
+                },
+                extracted_data: {
+                  type: "object",
+                  properties: {
+                    dates: { type: "array", items: { type: "string" } },
+                    amounts: { type: "array", items: { type: "string" } },
+                    people: { type: "array", items: { type: "string" } },
+                    organizations: { type: "array", items: { type: "string" } },
+                    locations: { type: "array", items: { type: "string" } }
+                  }
+                }
+              },
+              required: ["markdown_output", "summary", "keywords", "extracted_data"],
+              additionalProperties: false
+            }
+          }
+        }
+      ],
+      tool_choice: { type: "function", function: { name: "analyze_document" } }
     } : {
       model: 'google/gemini-2.5-flash',
       messages: [
@@ -517,6 +557,46 @@ Returnera strukturerad JSON:
         }
       ],
       temperature: 0.2,
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "analyze_document",
+            description: "Return structured document analysis with markdown output and extracted data.",
+            parameters: {
+              type: "object",
+              properties: {
+                markdown_output: { 
+                  type: "string",
+                  description: "Complete markdown formatted analysis"
+                },
+                summary: { 
+                  type: "string",
+                  description: "Brief summary of the document"
+                },
+                keywords: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "10-15 key terms from the document"
+                },
+                extracted_data: {
+                  type: "object",
+                  properties: {
+                    dates: { type: "array", items: { type: "string" } },
+                    amounts: { type: "array", items: { type: "string" } },
+                    people: { type: "array", items: { type: "string" } },
+                    organizations: { type: "array", items: { type: "string" } },
+                    locations: { type: "array", items: { type: "string" } }
+                  }
+                }
+              },
+              required: ["markdown_output", "summary", "keywords", "extracted_data"],
+              additionalProperties: false
+            }
+          }
+        }
+      ],
+      tool_choice: { type: "function", function: { name: "analyze_document" } }
     };
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -562,12 +642,20 @@ Returnera strukturerad JSON:
 
     let analysisResult;
     try {
-      const contentText = aiData.choices[0].message.content;
-      const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysisResult = JSON.parse(jsonMatch[0]);
+      // Check if response uses tool calling (structured output)
+      if (aiData.choices[0].message.tool_calls && aiData.choices[0].message.tool_calls.length > 0) {
+        const toolCall = aiData.choices[0].message.tool_calls[0];
+        analysisResult = JSON.parse(toolCall.function.arguments);
+        console.log('Parsed structured output from tool call');
       } else {
-        analysisResult = JSON.parse(contentText);
+        // Fallback to old parsing method
+        const contentText = aiData.choices[0].message.content;
+        const jsonMatch = contentText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          analysisResult = JSON.parse(jsonMatch[0]);
+        } else {
+          analysisResult = JSON.parse(contentText);
+        }
       }
       
       // Validate that we have markdown_output
@@ -578,8 +666,8 @@ Returnera strukturerad JSON:
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       analysisResult = {
-        summary: aiData.choices[0].message.content,
-        markdown_output: aiData.choices[0].message.content,
+        summary: aiData.choices[0].message.content || 'Analysis failed',
+        markdown_output: aiData.choices[0].message.content || 'Analysis failed',
         keywords: [],
         extracted_data: {}
       };
