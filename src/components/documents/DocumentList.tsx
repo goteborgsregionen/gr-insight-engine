@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight } from "lucide-react";
+import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight, Search, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
@@ -20,17 +20,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { formatFileSize } from "@/lib/format";
 import { groupByDocumentFamily, Document } from "@/lib/documents";
 import { VersionBadge } from "./VersionBadge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function DocumentList() {
   const queryClient = useQueryClient();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
+  const [analysisTypeFilter, setAnalysisTypeFilter] = useState<string>("all");
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ["documents"],
@@ -51,7 +56,29 @@ export function DocumentList() {
     },
   });
 
-  const documentGroups = documents ? groupByDocumentFamily(documents) : [];
+  const filteredDocuments = useMemo(() => {
+    if (!documents) return [];
+    
+    return documents.filter((doc) => {
+      // Search filter
+      const matchesSearch = searchQuery === "" || 
+        doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.file_name.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // File type filter
+      const matchesFileType = fileTypeFilter === "all" || doc.file_type.includes(fileTypeFilter);
+      
+      // Analysis type filter
+      const docAnalysisType = (doc as any).analysis_results?.[0]?.analysis_type;
+      const matchesAnalysisType = analysisTypeFilter === "all" || 
+        (analysisTypeFilter === "none" && !docAnalysisType) ||
+        docAnalysisType === analysisTypeFilter;
+      
+      return matchesSearch && matchesFileType && matchesAnalysisType;
+    });
+  }, [documents, searchQuery, fileTypeFilter, analysisTypeFilter]);
+
+  const documentGroups = filteredDocuments ? groupByDocumentFamily(filteredDocuments) : [];
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups((prev) => {
@@ -240,8 +267,67 @@ export function DocumentList() {
 
   return (
     <>
-      <div className="grid gap-4">
-        {documentGroups.map((group) => {
+      <div className="space-y-6">
+        {/* Search and Filter Bar */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Sök dokument..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          
+          <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filtyp" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alla filtyper</SelectItem>
+              <SelectItem value="pdf">PDF</SelectItem>
+              <SelectItem value="spreadsheet">Excel</SelectItem>
+              <SelectItem value="document">Dokument</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={analysisTypeFilter} onValueChange={setAnalysisTypeFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Analys" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alla analyser</SelectItem>
+              <SelectItem value="none">Ej analyserade</SelectItem>
+              {ANALYSIS_TEMPLATES.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.name}
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Results count */}
+        <div className="text-sm text-muted-foreground">
+          Visar {documentGroups.length} av {documents?.length || 0} dokument
+        </div>
+
+        {/* Document List */}
+        <div className="grid gap-4">
+          {documentGroups.length === 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Inga dokument hittades</p>
+              </CardContent>
+            </Card>
+          )}
+          
+          {documentGroups.map((group) => {
           const groupId = group.latestVersion.parent_document_id || group.latestVersion.id;
           const isExpanded = expandedGroups.has(groupId);
           const hasOlderVersions = group.olderVersions.length > 0;
@@ -275,6 +361,7 @@ export function DocumentList() {
             </div>
           );
         })}
+        </div>
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
