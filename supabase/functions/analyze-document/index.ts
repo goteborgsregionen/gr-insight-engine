@@ -495,9 +495,10 @@ Returnera strukturerad JSON:
               text: analysisPrompt
             },
             {
-              type: 'image_url',
-              image_url: {
-                url: `data:application/pdf;base64,${base64Data}`
+              type: 'inline_data',
+              inline_data: {
+                mime_type: 'application/pdf',
+                data: base64Data
               }
             }
           ]
