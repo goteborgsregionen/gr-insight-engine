@@ -110,7 +110,14 @@ serve(async (req) => {
     if (isPDF) {
       // Convert PDF to base64 for Gemini vision API
       const uint8Array = new Uint8Array(fileBuffer);
-      base64Data = btoa(String.fromCharCode(...uint8Array));
+      // Convert to base64 in chunks to avoid stack overflow on large files
+      let binaryString = '';
+      const chunkSize = 8192; // Process 8KB at a time
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
+        const chunk = uint8Array.subarray(i, i + chunkSize);
+        binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+      }
+      base64Data = btoa(binaryString);
       fileContent = `[PDF Document - ${fileBuffer.byteLength} bytes]`;
       console.log(`PDF file detected. Size: ${fileBuffer.byteLength} bytes, Hash: ${contentHash}`);
     } else {
