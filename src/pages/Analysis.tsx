@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
 import { ANALYSIS_TEMPLATES, getTemplateById, combinePromptModifiers } from "@/lib/analysisTemplates";
 import { cn } from "@/lib/utils";
+import { ContextSelector } from "@/components/analysis/ContextSelector";
 
 type AnalysisStep = 1 | 2 | 3;
 
@@ -48,6 +49,7 @@ export default function Analysis() {
   const [editingPromptFor, setEditingPromptFor] = useState<string | null>(null);
   const [showInfoFor, setShowInfoFor] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [selectedContextTemplateIds, setSelectedContextTemplateIds] = useState<string[]>([]);
 
   // Fetch documents
   const { data: documents, isLoading: isLoadingDocs } = useQuery({
@@ -89,7 +91,8 @@ export default function Analysis() {
           analysisType: selectedTemplates.join(','),
           customPrompt: combinedPrompt,
           title: `Analys ${new Date().toLocaleDateString('sv-SE')}`,
-          analysisTemplates: ANALYSIS_TEMPLATES
+          analysisTemplates: ANALYSIS_TEMPLATES,
+          contextTemplateIds: selectedContextTemplateIds
         },
       });
 
@@ -320,6 +323,12 @@ export default function Analysis() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <ContextSelector
+                selectedTemplateIds={selectedContextTemplateIds}
+                onSelectionChange={setSelectedContextTemplateIds}
+                documentIds={selectedDocs}
+                analysisType={selectedTemplates.join(',')}
+              />
               {selectedTemplates.length > 0 && (
                 <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                   <Check className="h-4 w-4 text-primary" />

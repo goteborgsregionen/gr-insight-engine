@@ -86,11 +86,39 @@ serve(async (req) => {
     console.log(`Found ${individualResults.length} individual analyses for ${documents.length} documents`);
 
     // Prepare the comprehensive prompt for strategic aggregation
-    const strategicPromptTemplate = `
+    let strategicPromptTemplate = `
 Du är en expert på strategisk policyanalys och ska skapa en omfattande strategisk jämförelseanalys.
 
 ANALYSTYP: Strategisk Jämförelseanalys
+`;
 
+    // Add context from session if available
+    if (session.merged_context && Object.keys(session.merged_context).length > 0) {
+      const context = session.merged_context as any;
+      
+      if (context.organization_context?.name || context.organization_context?.vision) {
+        strategicPromptTemplate += '\n\nORGANISATIONSKONTEXT:\n';
+        if (context.organization_context.name) {
+          strategicPromptTemplate += `Organisation: ${context.organization_context.name}\n`;
+        }
+        if (context.organization_context.vision) {
+          strategicPromptTemplate += `Vision: ${context.organization_context.vision}\n`;
+        }
+      }
+      
+      if (context.analysis_guidelines?.focus_areas?.length > 0) {
+        strategicPromptTemplate += '\nFOKUSOMRÅDEN:\n';
+        strategicPromptTemplate += context.analysis_guidelines.focus_areas.map((f: string) => `- ${f}`).join('\n');
+        strategicPromptTemplate += '\n';
+      }
+      
+      if (context.custom_instructions?.length > 0) {
+        strategicPromptTemplate += '\nANPASSADE INSTRUKTIONER:\n';
+        strategicPromptTemplate += context.custom_instructions.join('\n\n') + '\n';
+      }
+    }
+
+    strategicPromptTemplate += `
 MÅL: 
 Identifiera långsiktiga mål och strategiska prioriteringar genom att analysera ALLA dokument tillsammans. 
 Skapa en samlad strategisk översikt som visar mönster, synergier och gap mellan dokumenten.

@@ -27,7 +27,7 @@ serve(async (req) => {
       });
     }
 
-    const { documentIds, analysisType, customPrompt, title, analysisTemplates } = await req.json();
+    const { documentIds, analysisType, customPrompt, title, analysisTemplates, contextTemplateIds } = await req.json();
 
     if (!documentIds || documentIds.length === 0) {
       return new Response(JSON.stringify({ error: 'No documents provided' }), {
@@ -52,6 +52,79 @@ serve(async (req) => {
       });
     }
 
+    // Fetch and merge context templates if provided
+    let mergedContext: any = {};
+    let contextText = '';
+    
+    if (contextTemplateIds && contextTemplateIds.length > 0) {
+      const { data: templates, error: templatesError } = await supabase
+        .from('context_templates')
+        .select('*')
+        .in('id', contextTemplateIds);
+      
+      if (!templatesError && templates) {
+        // Merge contexts
+        mergedContext = {
+          organization_context: {},
+          analysis_guidelines: {
+            focus_areas: [],
+            quality_criteria: [],
+          },
+          reference_framework: {
+            key_documents: [],
+            relevant_policies: [],
+          },
+          custom_instructions: [],
+        };
+
+        templates.forEach((template: any) => {
+          const data = template.context_data;
+          
+          if (data.organization_context) {
+            Object.assign(mergedContext.organization_context, data.organization_context);
+          }
+          
+          if (data.analysis_guidelines?.focus_areas) {
+            mergedContext.analysis_guidelines.focus_areas.push(...data.analysis_guidelines.focus_areas);
+          }
+          
+          if (data.analysis_guidelines?.quality_criteria) {
+            mergedContext.analysis_guidelines.quality_criteria.push(...data.analysis_guidelines.quality_criteria);
+          }
+          
+          if (data.reference_framework?.key_documents) {
+            mergedContext.reference_framework.key_documents.push(...data.reference_framework.key_documents);
+          }
+          
+          if (data.custom_instructions) {
+            mergedContext.custom_instructions.push(data.custom_instructions);
+          }
+        });
+
+        // Build context text for prompt
+        if (mergedContext.organization_context.name || mergedContext.organization_context.vision) {
+          contextText += '\n\nORGANISATIONSKONTEXT:\n';
+          if (mergedContext.organization_context.name) {
+            contextText += `Organisation: ${mergedContext.organization_context.name}\n`;
+          }
+          if (mergedContext.organization_context.vision) {
+            contextText += `Vision: ${mergedContext.organization_context.vision}\n`;
+          }
+        }
+        
+        if (mergedContext.analysis_guidelines.focus_areas.length > 0) {
+          contextText += '\nFOKUSOMRÅDEN:\n';
+          contextText += mergedContext.analysis_guidelines.focus_areas.map((f: string) => `- ${f}`).join('\n');
+          contextText += '\n';
+        }
+        
+        if (mergedContext.custom_instructions.length > 0) {
+          contextText += '\nANPASSADE INSTRUKTIONER:\n';
+          contextText += mergedContext.custom_instructions.join('\n\n');
+        }
+      }
+    }
+
     // Build the complete prompt using templates
     let fullPrompt = customPrompt || '';
     
@@ -63,6 +136,11 @@ serve(async (req) => {
       }
     } else if (customPrompt) {
       fullPrompt = customPrompt;
+    }
+    
+    // Add context to prompt
+    if (contextText) {
+      fullPrompt = contextText + '\n\n' + fullPrompt;
     }
 
     // Create session with status 'processing'
@@ -88,6 +166,9 @@ serve(async (req) => {
         custom_prompt: fullPrompt || null,
         analysis_result: initialResult,
         status: 'processing',
+        context_template_ids: contextTemplateIds || [],
+        merged_context: mergedContext,
+        full_prompt_preview: contextText + '\n\n' + fullPrompt,
       })
       .select()
       .single();
