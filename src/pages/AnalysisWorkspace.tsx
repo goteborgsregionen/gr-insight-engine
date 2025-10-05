@@ -251,6 +251,32 @@ export default function AnalysisWorkspace() {
     },
   });
 
+  // Manual strategic aggregation trigger
+  const triggerAggregationMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('aggregate-strategic-analysis', {
+        body: { sessionId },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-session', sessionId] });
+      toast({
+        title: "Strategisk analys skapad",
+        description: "Den omfattande strategiska sammanställningen har genererats",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fel",
+        description: error.message || "Kunde inte skapa strategisk sammanställning",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -393,8 +419,41 @@ export default function AnalysisWorkspace() {
             </Alert>
           )}
 
+          {/* Strategic Aggregation Trigger */}
+          {isProcessing && 
+           session.analysis_type === 'strategic' && 
+           individualResults && 
+           individualResults.length === session.document_ids.length && 
+           !result?.strategic_overview && (
+            <Alert className="border-primary">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="flex items-center justify-between">
+                  <span>
+                    Alla dokument är analyserade. Skapa nu den strategiska sammanställningen.
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => triggerAggregationMutation.mutate()}
+                    disabled={triggerAggregationMutation.isPending}
+                  >
+                    {triggerAggregationMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Skapa Strategisk Sammanställning
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Stuck Session Fix */}
-          {isProcessing && individualResults && individualResults.length === session.document_ids.length && (
+          {isProcessing && 
+           session.analysis_type !== 'strategic' && 
+           individualResults && 
+           individualResults.length === session.document_ids.length && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>

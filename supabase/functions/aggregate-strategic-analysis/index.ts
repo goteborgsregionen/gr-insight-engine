@@ -16,18 +16,6 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Authenticate user
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      throw new Error('Unauthorized');
-    }
-
     const { sessionId } = await req.json();
 
     if (!sessionId) {
@@ -36,12 +24,39 @@ serve(async (req) => {
 
     console.log(`Starting strategic aggregation for session: ${sessionId}`);
 
+    // Authenticate: support both frontend calls (with Authorization header) and service-to-service calls (without header)
+    const authHeader = req.headers.get('Authorization');
+    let userId: string;
+
+    if (authHeader) {
+      // Called from frontend with user token
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        throw new Error('Unauthorized');
+      }
+      userId = user.id;
+    } else {
+      // Called from another edge function (process-analysis-queue) - get user_id from session
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('analysis_sessions')
+        .select('user_id')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError || !sessionData) {
+        throw new Error('Session not found');
+      }
+      userId = sessionData.user_id;
+      console.log(`Service-to-service call for user: ${userId}`);
+    }
+
     // Fetch the session
     const { data: session, error: sessionError } = await supabase
       .from('analysis_sessions')
       .select('*')
       .eq('id', sessionId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (sessionError || !session) {
