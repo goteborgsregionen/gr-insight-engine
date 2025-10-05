@@ -34,11 +34,14 @@ export default function Settings() {
   };
 
   // Check if user is admin
-  const { data: userRole } = useQuery({
+  const { data: userRole, isLoading: isLoadingRole } = useQuery({
     queryKey: ['user-role'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      if (!user) {
+        console.log('🔍 Debug - No user found');
+        return null;
+      }
       
       const { data, error } = await supabase
         .from('user_roles')
@@ -46,10 +49,20 @@ export default function Settings() {
         .eq('user_id', user.id)
         .maybeSingle();
       
-      if (error) throw error;
+      if (error) {
+        console.log('🔍 Debug - Error fetching role:', error);
+        throw error;
+      }
+      
+      console.log('🔍 Debug - User role from DB:', data?.role);
+      console.log('🔍 Debug - Full data:', data);
       return data?.role || 'user';
     },
+    refetchOnMount: 'always',
   });
+
+  console.log('🔍 Debug - Current userRole state:', userRole);
+  console.log('🔍 Debug - Is loading role:', isLoadingRole);
 
   // Fetch all context templates
   const { data: templates, refetch } = useQuery({
@@ -155,12 +168,13 @@ export default function Settings() {
                           Skapad {new Date(template.created_at).toLocaleDateString('sv-SE')}
                         </p>
                       </div>
-                      {userRole === 'admin' && (
+                      {!isLoadingRole && userRole === 'admin' && (
                         <div className="flex gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => {
+                              console.log('🔍 Debug - Edit clicked for template:', template.id);
                               setEditTemplateId(template.id);
                               setShowEditor(true);
                             }}
