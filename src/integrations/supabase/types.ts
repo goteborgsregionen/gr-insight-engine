@@ -144,10 +144,13 @@ export type Database = {
           analysis_type: string
           chat_history: Json[] | null
           completed_at: string | null
+          context_template_ids: string[] | null
           created_at: string | null
           custom_prompt: string | null
           document_ids: string[]
+          full_prompt_preview: string | null
           id: string
+          merged_context: Json | null
           status: string
           title: string
           updated_at: string | null
@@ -158,10 +161,13 @@ export type Database = {
           analysis_type?: string
           chat_history?: Json[] | null
           completed_at?: string | null
+          context_template_ids?: string[] | null
           created_at?: string | null
           custom_prompt?: string | null
           document_ids: string[]
+          full_prompt_preview?: string | null
           id?: string
+          merged_context?: Json | null
           status?: string
           title?: string
           updated_at?: string | null
@@ -172,10 +178,13 @@ export type Database = {
           analysis_type?: string
           chat_history?: Json[] | null
           completed_at?: string | null
+          context_template_ids?: string[] | null
           created_at?: string | null
           custom_prompt?: string | null
           document_ids?: string[]
+          full_prompt_preview?: string | null
           id?: string
+          merged_context?: Json | null
           status?: string
           title?: string
           updated_at?: string | null
@@ -204,6 +213,42 @@ export type Database = {
           document_ids?: string[]
           id?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      context_templates: {
+        Row: {
+          context_data: Json | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_system_default: boolean | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          context_data?: Json | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system_default?: boolean | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          context_data?: Json | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system_default?: boolean | null
+          title?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -269,15 +314,42 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -404,6 +476,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
