@@ -24,6 +24,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showEditor, setShowEditor] = useState(false);
+  const [editTemplateId, setEditTemplateId] = useState<string | undefined>(undefined);
   const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
 
   const handleLogout = async () => {
@@ -121,7 +122,10 @@ export default function Settings() {
                   Hantera kontext-mallar för AI-analyser
                 </CardDescription>
               </div>
-              <Button onClick={() => setShowEditor(true)}>
+              <Button onClick={() => {
+                setEditTemplateId(undefined);
+                setShowEditor(true);
+              }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Ny mall
               </Button>
@@ -151,6 +155,27 @@ export default function Settings() {
                           Skapad {new Date(template.created_at).toLocaleDateString('sv-SE')}
                         </p>
                       </div>
+                      {userRole === 'admin' && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditTemplateId(template.id);
+                              setShowEditor(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteTemplateId(template.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -179,13 +204,25 @@ export default function Settings() {
                           Skapad {new Date(template.created_at).toLocaleDateString('sv-SE')}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTemplateId(template.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditTemplateId(template.id);
+                            setShowEditor(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTemplateId(template.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -197,8 +234,10 @@ export default function Settings() {
 
       <ContextTemplateEditor
         open={showEditor}
+        templateId={editTemplateId}
         onClose={(created) => {
           setShowEditor(false);
+          setEditTemplateId(undefined);
           if (created) refetch();
         }}
       />

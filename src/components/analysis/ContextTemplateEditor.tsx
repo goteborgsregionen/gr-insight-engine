@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,50 @@ export function ContextTemplateEditor({ open, onClose, templateId }: ContextTemp
   const [focusAreas, setFocusAreas] = useState("");
   const [customInstructions, setCustomInstructions] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const isEditMode = !!templateId;
+
+  // Load existing template data when editing
+  useEffect(() => {
+    const loadTemplate = async () => {
+      if (templateId && open) {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('context_templates')
+            .select('*')
+            .eq('id', templateId)
+            .single();
+          
+          if (error) {
+            toast.error("Kunde inte ladda mall");
+            return;
+          }
+          if (data) {
+            setTitle(data.title);
+            setDescription(data.description || "");
+            const contextData = data.context_data as ContextData;
+            setOrgName(contextData.organization_context?.name || "");
+            setVision(contextData.organization_context?.vision || "");
+            setFocusAreas(contextData.analysis_guidelines?.focus_areas?.join('\n') || "");
+            setCustomInstructions(contextData.custom_instructions || "");
+          }
+        } finally {
+          setLoading(false);
+        }
+      } else if (!open) {
+        // Reset form when dialog closes
+        setTitle("");
+        setDescription("");
+        setOrgName("");
+        setVision("");
+        setFocusAreas("");
+        setCustomInstructions("");
+      }
+    };
+    
+    loadTemplate();
+  }, [templateId, open]);
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -71,31 +115,40 @@ export function ContextTemplateEditor({ open, onClose, templateId }: ContextTemp
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Inte inloggad");
 
-      const { error } = await supabase
-        .from('context_templates')
-        .insert([{
-          title: title.trim(),
-          description: description.trim() || null,
-          context_data: contextData as any,
-          created_by: user.id,
-          is_system_default: false,
-        }]);
+      if (isEditMode) {
+        // Update existing template
+        const { error } = await supabase
+          .from('context_templates')
+          .update({
+            title: title.trim(),
+            description: description.trim() || null,
+            context_data: contextData as any,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', templateId);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success("Kontext-mall uppdaterad");
+      } else {
+        // Create new template
+        const { error } = await supabase
+          .from('context_templates')
+          .insert([{
+            title: title.trim(),
+            description: description.trim() || null,
+            context_data: contextData as any,
+            created_by: user.id,
+            is_system_default: false,
+          }]);
 
-      toast.success("Kontext-mall skapad");
+        if (error) throw error;
+        toast.success("Kontext-mall skapad");
+      }
+
       onClose(true);
-      
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setOrgName("");
-      setVision("");
-      setFocusAreas("");
-      setCustomInstructions("");
     } catch (error) {
       console.error('Error saving context template:', error);
-      toast.error("Kunde inte spara kontext-mallen");
+      toast.error(isEditMode ? "Kunde inte uppdatera kontext-mallen" : "Kunde inte spara kontext-mallen");
     } finally {
       setSaving(false);
     }
@@ -105,11 +158,21 @@ export function ContextTemplateEditor({ open, onClose, templateId }: ContextTemp
     <Dialog open={open} onOpenChange={() => onClose(false)}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Skapa kontext-mall</DialogTitle>
+          <DialogTitle>{isEditMode ? "Redigera kontext-mall" : "Skapa kontext-mall"}</DialogTitle>
           <DialogDescription>
-            Fyll i bakgrundsinformation som AI:n ska använda vid analyser
+            {isEditMode 
+              ? "Uppdatera bakgrundsinformation som AI:n ska använda vid analyser"
+              : "Fyll i bakgrundsinformation som AI:n ska använda vid analyser"
+            }
           </DialogDescription>
         </DialogHeader>
+
+        {loading ? (
+          <div className="py-8 text-center text-muted-foreground">
+            Laddar mall...
+          </div>
+        ) : (
+          <>
 
         <div className="space-y-6 py-4">
           <div className="space-y-2">
@@ -193,10 +256,12 @@ export function ContextTemplateEditor({ open, onClose, templateId }: ContextTemp
           <Button variant="outline" onClick={() => onClose(false)}>
             Avbryt
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Sparar..." : "Skapa mall"}
+          <Button onClick={handleSave} disabled={saving || loading}>
+            {saving ? "Sparar..." : isEditMode ? "Uppdatera mall" : "Skapa mall"}
           </Button>
         </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
