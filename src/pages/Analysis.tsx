@@ -11,6 +11,13 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -29,7 +36,9 @@ import {
   BarChart,
   Edit,
   Check,
-  Info
+  Info,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentUploadZone } from "@/components/documents/DocumentUploadZone";
@@ -44,6 +53,7 @@ export default function Analysis() {
   const navigate = useNavigate();
   const [step, setStep] = useState<AnalysisStep>(1);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [documentPriorities, setDocumentPriorities] = useState<Record<string, number>>({});
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   const [editingPromptFor, setEditingPromptFor] = useState<string | null>(null);
@@ -133,11 +143,63 @@ export default function Analysis() {
   });
 
   const toggleDocSelection = (docId: string) => {
-    setSelectedDocs(prev =>
-      prev.includes(docId)
+    setSelectedDocs(prev => {
+      const newDocs = prev.includes(docId)
         ? prev.filter(id => id !== docId)
-        : [...prev, docId]
-    );
+        : [...prev, docId];
+      
+      // Set default priority for newly added documents
+      if (!prev.includes(docId)) {
+        setDocumentPriorities(priorities => ({
+          ...priorities,
+          [docId]: 3 // Default: Normal priority
+        }));
+      }
+      
+      return newDocs;
+    });
+  };
+
+  const moveDocumentUp = (docId: string) => {
+    setSelectedDocs(prev => {
+      const index = prev.indexOf(docId);
+      if (index > 0) {
+        const newDocs = [...prev];
+        [newDocs[index - 1], newDocs[index]] = [newDocs[index], newDocs[index - 1]];
+        return newDocs;
+      }
+      return prev;
+    });
+  };
+
+  const moveDocumentDown = (docId: string) => {
+    setSelectedDocs(prev => {
+      const index = prev.indexOf(docId);
+      if (index < prev.length - 1) {
+        const newDocs = [...prev];
+        [newDocs[index], newDocs[index + 1]] = [newDocs[index + 1], newDocs[index]];
+        return newDocs;
+      }
+      return prev;
+    });
+  };
+
+  const setPriority = (docId: string, priority: number) => {
+    setDocumentPriorities(prev => ({
+      ...prev,
+      [docId]: priority
+    }));
+  };
+
+  const getPriorityLabel = (priority: number): { label: string; variant: "default" | "secondary" | "outline" } => {
+    switch(priority) {
+      case 1: return { label: "Primär", variant: "default" };
+      case 2: return { label: "Hög", variant: "default" };
+      case 3: return { label: "Normal", variant: "secondary" };
+      case 4: return { label: "Låg", variant: "secondary" };
+      case 5: return { label: "Referens", variant: "outline" };
+      default: return { label: "Normal", variant: "secondary" };
+    }
   };
 
   const toggleTemplateSelection = (templateId: string) => {
@@ -278,23 +340,123 @@ export default function Analysis() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {documents.map((doc: any) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <Checkbox
-                        checked={selectedDocs.includes(doc.id)}
-                        onCheckedChange={() => toggleDocSelection(doc.id)}
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium">{doc.title}</p>
-                        <p className="text-sm text-muted-foreground">{doc.file_name}</p>
+                <div className="space-y-3">
+                  {selectedDocs.length > 0 && (
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4">
+                      <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        Valda dokument ({selectedDocs.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedDocs.map((docId, index) => {
+                          const doc = documents.find(d => d.id === docId);
+                          if (!doc) return null;
+                          const priority = documentPriorities[docId] || 3;
+                          const priorityInfo = getPriorityLabel(priority);
+                          
+                          return (
+                            <div
+                              key={doc.id}
+                              className="flex items-center gap-3 p-3 bg-background border rounded-lg"
+                            >
+                              <div className="flex flex-col gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => moveDocumentUp(docId)}
+                                  disabled={index === 0}
+                                >
+                                  <ChevronUp className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => moveDocumentDown(docId)}
+                                  disabled={index === selectedDocs.length - 1}
+                                >
+                                  <ChevronDown className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 min-w-[3rem]">
+                                <Badge variant={priorityInfo.variant}>
+                                  {priorityInfo.label}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground font-mono">
+                                  #{index + 1}
+                                </span>
+                              </div>
+                              
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{doc.title}</p>
+                                <p className="text-xs text-muted-foreground">{doc.file_name}</p>
+                              </div>
+                              
+                              <Select
+                                value={priority.toString()}
+                                onValueChange={(value) => setPriority(docId, parseInt(value))}
+                              >
+                                <SelectTrigger className="w-[140px] h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="1">Högst prioritet</SelectItem>
+                                  <SelectItem value="2">Hög</SelectItem>
+                                  <SelectItem value="3">Normal</SelectItem>
+                                  <SelectItem value="4">Låg</SelectItem>
+                                  <SelectItem value="5">Referens</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleDocSelection(docId)}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <Badge variant="outline">{doc.file_type}</Badge>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        💡 <strong>Tips:</strong> Dokument högre upp i listan prioriteras vid motstridiga uppgifter. 
+                        Använd pilknapparna för att ändra ordning eller välj prioritetsnivå.
+                      </p>
                     </div>
-                  ))}
+                  )}
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Tillgängliga dokument</h4>
+                    {documents.map((doc: any) => {
+                      const isSelected = selectedDocs.includes(doc.id);
+                      return (
+                        <div
+                          key={doc.id}
+                          className={cn(
+                            "flex items-center gap-3 p-3 border rounded-lg transition-colors",
+                            isSelected 
+                              ? "opacity-50 bg-muted/30" 
+                              : "hover:bg-muted/50 cursor-pointer"
+                          )}
+                          onClick={() => !isSelected && toggleDocSelection(doc.id)}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleDocSelection(doc.id)}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium">{doc.title}</p>
+                            <p className="text-sm text-muted-foreground">{doc.file_name}</p>
+                          </div>
+                          <Badge variant="outline">{doc.file_type}</Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </CardContent>
