@@ -15,6 +15,7 @@ import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Analysis from "./pages/Analysis";
 import AnalysisWorkspace from "./pages/AnalysisWorkspace";
+import Presentation from "./pages/Presentation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,10 @@ const App = () => {
             <Route
               path="/chat"
               element={session ? <Chat /> : <Navigate to="/" />}
+            />
+            <Route
+              path="/presentation"
+              element={session ? <Presentation /> : <Navigate to="/" />}
             />
             <Route
               path="/settings"

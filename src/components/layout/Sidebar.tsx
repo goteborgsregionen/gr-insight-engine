@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, FileText, BarChart3, MessageSquare, Settings, Upload, TrendingUp } from "lucide-react";
+import { Home, FileText, BarChart3, MessageSquare, Settings, Upload, TrendingUp, Presentation } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/analysis", icon: TrendingUp, label: "Analys" },
   { to: "/reports", icon: BarChart3, label: "Rapporter" },
   { to: "/chat", icon: MessageSquare, label: "AI-chatt" },
+  { to: "/presentation", icon: Presentation, label: "Presentation" },
   { to: "/settings", icon: Settings, label: "Inställningar" },
 ];
 
