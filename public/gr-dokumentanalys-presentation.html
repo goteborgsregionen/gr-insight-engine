@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GR Dokumentanalysverktyg - Teknisk Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --gr-turkos: hsl(176, 100%, 32%);
+            --gr-green: hsl(96, 47%, 51%);
+            --gr-peach: hsl(24, 77%, 71%);
+            --gr-red: hsl(353, 83%, 54%);
+            --gr-black: hsl(356, 6%, 13%);
+            --gr-bg: hsl(0, 0%, 100%);
+            --gr-text: hsl(356, 6%, 13%);
+            --gr-border: hsl(176, 20%, 85%);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, hsl(176, 100%, 98%) 0%, hsl(0, 0%, 100%) 100%);
+            color: var(--gr-text);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .presentation-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .slide {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem;
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .slide.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--gr-turkos);
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--gr-turkos);
+            margin-bottom: 1.5rem;
+            border-bottom: 3px solid var(--gr-turkos);
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--gr-green);
+            margin: 2rem 0 1rem 0;
+        }
+
+        p, li {
+            font-size: 1.1rem;
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+
+        ul, ol {
+            margin-left: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.75rem;
+        }
+
+        .subtitle {
+            font-size: 1.3rem;
+            color: var(--gr-green);
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: white;
+            border: 2px solid var(--gr-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 12px rgba(0, 161, 154, 0.1);
+        }
+
+        .code-block {
+            background: hsl(356, 6%, 13%);
+            color: hsl(96, 47%, 71%);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 1.5rem 0;
+        }
+
+        .code-block .keyword { color: hsl(353, 83%, 64%); }
+        .code-block .string { color: hsl(24, 77%, 71%); }
+        .code-block .comment { color: hsl(0, 0%, 60%); font-style: italic; }
+
+        .highlight {
+            background: linear-gradient(120deg, hsla(176, 100%, 32%, 0.1) 0%, hsla(96, 47%, 51%, 0.1) 100%);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature-box {
+            background: white;
+            border: 2px solid var(--gr-border);
+            border-left: 4px solid var(--gr-turkos);
+            padding: 1.5rem;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .feature-box:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 161, 154, 0.15);
+        }
+
+        .feature-box h4 {
+            color: var(--gr-turkos);
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 2rem 0;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            border: 2px solid var(--gr-border);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(90deg, var(--gr-turkos) 0%, var(--gr-green) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 3rem;
+            color: white;
+            z-index: 1000;
+        }
+
+        .progress-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: var(--gr-peach);
+            transition: width 0.3s ease;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: 'Inter', sans-serif;
+        }
+
+        button:hover {
+            background: white;
+            color: var(--gr-turkos);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .keyboard-hint {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .section-marker {
+            display: inline-block;
+            background: var(--gr-green);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .title-slide {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            height: 100%;
+        }
+
+        .title-slide h1 {
+            font-size: 4rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo-placeholder {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(135deg, var(--gr-turkos), var(--gr-green));
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+            font-weight: 700;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, var(--gr-turkos), var(--gr-green));
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-box .label {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .slide {
+                padding: 1.5rem;
+                height: calc(100vh - 100px);
+            }
+            
+            h1 { font-size: 2rem; }
+            h2 { font-size: 1.8rem; }
+            h3 { font-size: 1.4rem; }
+            
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                padding: 0 1rem;
+                flex-wrap: wrap;
+                height: 100px;
+            }
+        }
+
+        @media print {
+            .slide {
+                display: block !important;
+                page-break-after: always;
+                height: auto;
+            }
+            
+            .controls {
+                display: none;
+            }
+            
+            body {
+                background: white;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation-container">
+        <!-- Slide 1: Title -->
+        <div class="slide active" data-slide="1">
+            <div class="title-slide">
+                <div class="logo-placeholder">GR</div>
+                <h1>Dokumentanalysverktyg</h1>
+                <p class="subtitle">AI-driven intelligent dokumenthantering för GR</p>
+                <p style="margin-top: 2rem; font-size: 1.1rem;">React · TypeScript · Lovable Cloud · Google Gemini</p>
+            </div>
+        </div>
+
+        <!-- Slide 2: Problem -->
+        <div class="slide" data-slide="2">
+            <span class="section-marker">SEKTION 1: INTRODUKTION</span>
+            <h2>Problemet: Manuell dokumenthantering</h2>
+            
+            <div class="mermaid">
+flowchart LR
+    A[Dokument mottaget] --> B[Manuell läsning<br/>30-60 min/dok]
+    B --> C[Sammanställning<br/>15-30 min]
+    C --> D[Jämförelse med tidigare<br/>20-40 min]
+    D --> E[Rapport skapas<br/>30-60 min]
+    E --> F[Totalt: 2-3h per dokument]
+    
+    style A fill:#00A19A,stroke:#00A19A,color:#fff
+    style F fill:#EE4650,stroke:#EE4650,color:#fff
+    style B fill:#F5F5F5,stroke:#999
+    style C fill:#F5F5F5,stroke:#999
+    style D fill:#F5F5F5,stroke:#999
+    style E fill:#F5F5F5,stroke:#999
+            </div>
+
+            <div class="grid-3">
+                <div class="stat-box">
+                    <span class="number">2-3h</span>
+                    <span class="label">Per dokument</span>
+                </div>
+                <div class="stat-box">
+                    <span class="number">10-20</span>
+                    <span class="label">Dokument/månad</span>
+                </div>
+                <div class="stat-box">
+                    <span class="number">30-60h</span>
+                    <span class="label">Totalt per månad</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Utmaningar</h3>
+                <ul>
+                    <li><strong>Tidskrävande:</strong> Omfattande manuell läsning och analys</li>
+                    <li><strong>Inkonsekvent:</strong> Olika analytiker tolkar olika</li>
+                    <li><strong>Svårskalbart:</strong> Kan inte hantera fler dokument utan mer personal</li>
+                    <li><strong>Historik:</strong> Svårt att jämföra med tidigare versioner</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 3: Solution -->
+        <div class="slide" data-slide="3">
+            <span class="section-marker">SEKTION 1: INTRODUKTION</span>
+            <h2>Lösningen: AI-driven automatisering</h2>
+
+            <div class="grid-2">
+                <div class="feature-box">
+                    <h4>📤 Snabb uppladdning</h4>
+                    <p>Drag & drop av PDF/Word/Excel dokument. Automatisk metadata-extraktion med Gemini Flash Lite (2-3s).</p>
+                </div>
+                <div class="feature-box">
+                    <h4>🤖 Intelligent analys</h4>
+                    <p>6 fördefinierade analystyper + anpassade. Gemini 2.5 Pro för djupgående insikter (30-60s).</p>
+                </div>
+                <div class="feature-box">
+                    <h4>📊 Jämförande insikter</h4>
+                    <p>Automatisk jämförelse mellan dokumentversioner. Identifierar förändringar, trender och avvikelser.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>💬 Interaktiv chat</h4>
+                    <p>Ställ följdfrågor direkt till AI:n om analysresultaten. Få svar baserat på dokumentkontext.</p>
+                </div>
+            </div>
+
+            <div class="mermaid">
+flowchart LR
+    A[Dokument uppladdning] --> B[Metadata extraktion<br/>2-3s]
+    B --> C[AI-analys<br/>30-60s]
+    C --> D[Jämförande insikter<br/>10-15s]
+    D --> E[Interaktiv chat<br/>Realtid]
+    
+    style A fill:#00A19A,stroke:#00A19A,color:#fff
+    style E fill:#8FBE00,stroke:#8FBE00,color:#fff
+    style B fill:#F5F5F5,stroke:#999
+    style C fill:#F5F5F5,stroke:#999
+    style D fill:#F5F5F5,stroke:#999
+            </div>
+
+            <div class="card">
+                <h3>Resultat</h3>
+                <p><span class="highlight">95% tidsreduktion</span> – från 2-3h till 2-3 minuter per dokument</p>
+                <p><span class="highlight">Konsekvent kvalitet</span> – samma analysstandard varje gång</p>
+                <p><span class="highlight">Skalbar</span> – hanterar 100+ dokument parallellt</p>
+            </div>
+        </div>
+
+        <!-- Slide 4: Tech Stack -->
+        <div class="slide" data-slide="4">
+            <span class="section-marker">SEKTION 2: TEKNISK ARKITEKTUR</span>
+            <h2>Teknisk Stack</h2>
+
+            <div class="mermaid">
+graph TB
+    subgraph Frontend["🎨 FRONTEND"]
+        A1[React 18.3]
+        A2[TypeScript]
+        A3[Tailwind CSS]
+        A4[TanStack Query]
+        A5[React Router]
+    end
+    
+    subgraph Backend["⚙️ BACKEND - Lovable Cloud"]
+        B1[PostgreSQL 15]
+        B2[Edge Functions Deno]
+        B3[Storage Buckets]
+        B4[Row Level Security]
+    end
+    
+    subgraph AI["🧠 AI INTEGRATION"]
+        C1[Lovable AI Gateway]
+        C2[Google Gemini 2.5 Flash]
+        C3[Google Gemini 2.5 Pro]
+        C4[Google Gemini 2.5 Flash Lite]
+    end
+    
+    Frontend --> Backend
+    Backend --> AI
+    
+    style Frontend fill:#00A19A,stroke:#00A19A,color:#fff
+    style Backend fill:#8FBE00,stroke:#8FBE00,color:#fff
+    style AI fill:#F49F76,stroke:#F49F76,color:#fff
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>Varför React + TypeScript?</h3>
+                    <ul>
+                        <li><strong>Type safety:</strong> Färre runtime-fel</li>
+                        <li><strong>Komponenter:</strong> Återanvändbar UI-logik</li>
+                        <li><strong>Ekosystem:</strong> Omfattande tooling</li>
+                        <li><strong>Performance:</strong> Virtual DOM optimering</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>Varför Lovable Cloud?</h3>
+                    <ul>
+                        <li><strong>Snabb setup:</strong> Ingen backend-konfiguration</li>
+                        <li><strong>Säkerhet:</strong> RLS byggt in</li>
+                        <li><strong>Skalbarhet:</strong> Auto-scaling</li>
+                        <li><strong>Edge Functions:</strong> Server-side AI-logik</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>AI-modellval</h3>
+                <p><strong>Flash Lite (2-3s):</strong> Metadata-extraktion – snabb och kostnadseffektiv</p>
+                <p><strong>Flash (5-10s):</strong> Standard-analys – balans mellan kvalitet och hastighet</p>
+                <p><strong>Pro (30-60s):</strong> Djupgående strategisk analys – maximal precision</p>
+            </div>
+        </div>
+
+        <!-- Slide 5: System Architecture -->
+        <div class="slide" data-slide="5">
+            <span class="section-marker">SEKTION 2: TEKNISK ARKITEKTUR</span>
+            <h2>System Arkitektur</h2>
+
+            <div class="mermaid">
+flowchart TD
+    A[User Upload] --> B[Storage Bucket]
+    B --> C{Document Type?}
+    C -->|PDF/Word/Excel| D[extract-document-metadata]
+    D --> E[documents table]
+    E --> F[analyze-document]
+    F --> G[analysis_results table]
+    G --> H[aggregate-strategic-analysis]
+    H --> I[Combined Timeline]
+    I --> J[analysis-chat]
+    J --> K[Interactive Q&A]
+    
+    style A fill:#00A19A,stroke:#00A19A,color:#fff
+    style K fill:#8FBE00,stroke:#8FBE00,color:#fff
+    style B fill:#F5F5F5,stroke:#999
+    style E fill:#F5F5F5,stroke:#999
+    style G fill:#F5F5F5,stroke:#999
+    style I fill:#F5F5F5,stroke:#999
+            </div>
+
+            <div class="card">
+                <h3>Dataflöde steg-för-steg</h3>
+                <ol>
+                    <li><strong>Upload:</strong> Användare drar dokument till upload-zon</li>
+                    <li><strong>Storage:</strong> Fil sparas i Supabase Storage med unik path</li>
+                    <li><strong>Metadata:</strong> Edge Function extraherar titel, författare, sidantal</li>
+                    <li><strong>Analys:</strong> Dokument analyseras enligt valda templates</li>
+                    <li><strong>Aggregering:</strong> Resultat kombineras till unified timeline</li>
+                    <li><strong>Chat:</strong> AI får tillgång till alla resultat för konversation</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Slide 6: Database Schema -->
+        <div class="slide" data-slide="6">
+            <span class="section-marker">SEKTION 2: TEKNISK ARKITEKTUR</span>
+            <h2>Databas Schema</h2>
+
+            <div class="mermaid">
+erDiagram
+    documents ||--o{ analysis_results : "has"
+    analysis_sessions ||--o{ session_documents : "includes"
+    documents ||--o{ session_documents : "belongs to"
+    analysis_sessions ||--o{ analysis_results : "generates"
+    
+    documents {
+        uuid id PK
+        uuid user_id FK
+        text file_name
+        text file_path
+        text file_type
+        int file_size
+        jsonb metadata
+        timestamp created_at
+    }
+    
+    analysis_results {
+        uuid id PK
+        uuid document_id FK
+        uuid session_id FK
+        text analysis_type
+        jsonb result
+        text status
+        timestamp created_at
+    }
+    
+    analysis_sessions {
+        uuid id PK
+        uuid user_id FK
+        text name
+        jsonb selected_templates
+        timestamp created_at
+    }
+    
+    session_documents {
+        uuid id PK
+        uuid session_id FK
+        uuid document_id FK
+        int display_order
+        timestamp added_at
+    }
+    
+    analysis_queue {
+        uuid id PK
+        uuid session_id FK
+        uuid document_id FK
+        text status
+        int retry_count
+        timestamp created_at
+    }
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>Viktiga relationer</h3>
+                    <ul>
+                        <li><strong>documents:</strong> Sparar alla uppladdade filer</li>
+                        <li><strong>analysis_results:</strong> Lagrar AI-output per analystyp</li>
+                        <li><strong>analysis_sessions:</strong> Grupperar dokument för jämförelse</li>
+                        <li><strong>session_documents:</strong> Many-to-many mellan sessions och dokument</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>RLS (Row Level Security)</h3>
+                    <ul>
+                        <li>Alla tabeller har <code>user_id</code> kopplad till <code>auth.uid()</code></li>
+                        <li>Användare ser endast sina egna dokument</li>
+                        <li>INSERT/UPDATE/DELETE endast för ägare</li>
+                        <li>Admin-roller kan implementeras senare</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Data Flow - Upload -->
+        <div class="slide" data-slide="7">
+            <span class="section-marker">SEKTION 2: TEKNISK ARKITEKTUR</span>
+            <h2>Dataflöde: Dokumentuppladdning</h2>
+
+            <div class="mermaid">
+sequenceDiagram
+    participant U as User Browser
+    participant S as Storage Bucket
+    participant E1 as extract-metadata
+    participant DB as PostgreSQL
+    participant E2 as analyze-document
+    participant AI as Gemini API
+    
+    U->>S: Upload PDF (drag & drop)
+    Note over S: File stored in documents/
+    S-->>U: File URL returned
+    U->>E1: Trigger extraction
+    Note over E1: 2-3s processing
+    E1->>AI: Extract metadata (Flash Lite)
+    AI-->>E1: { title, author, pages }
+    E1->>DB: INSERT into documents
+    DB-->>U: Document created
+    U->>E2: Start analysis
+    Note over E2: 30-60s processing
+    E2->>AI: Analyze content (Pro)
+    AI-->>E2: Detailed insights
+    E2->>DB: INSERT into analysis_results
+    DB-->>U: Analysis complete
+            </div>
+
+            <div class="card">
+                <h3>Optimeringsstrategier</h3>
+                <ul>
+                    <li><strong>Parallel processing:</strong> Metadata och analys kan köras samtidigt</li>
+                    <li><strong>Queue system:</strong> analysis_queue hanterar batch-uploads</li>
+                    <li><strong>Progress tracking:</strong> WebSocket för real-time status</li>
+                    <li><strong>Retry logic:</strong> Automatisk återförsök vid API-fel</li>
+                </ul>
+            </div>
+
+            <div class="code-block">
+<span class="comment">// Example: Metadata extraction response</span>
+{
+  <span class="string">"title"</span>: <span class="string">"Årsredovisning 2024"</span>,
+  <span class="string">"author"</span>: <span class="string">"GR Ekonomiavdelningen"</span>,
+  <span class="string">"pages"</span>: <span class="keyword">87</span>,
+  <span class="string">"date_published"</span>: <span class="string">"2024-03-15"</span>,
+  <span class="string">"keywords"</span>: [<span class="string">"ekonomi"</span>, <span class="string">"budget"</span>, <span class="string">"strategisk planering"</span>]
+}
+            </div>
+        </div>
+
+        <!-- Slide 8: Current Features -->
+        <div class="slide" data-slide="8">
+            <span class="section-marker">SEKTION 3: FUNKTIONALITET</span>
+            <h2>Nuvarande Funktioner</h2>
+
+            <div class="grid-2">
+                <div class="feature-box">
+                    <h4>📄 Automatisk metadata-extraktion</h4>
+                    <p>Gemini Flash Lite extraherar titel, författare, datum, nyckelord inom 2-3 sekunder.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>🔍 Sex analystyper</h4>
+                    <p>Standard, Ekonomisk, Säkerhet, Strategisk, Teknisk, KPI & Metrics – alla med anpassade prompts.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>⚖️ Jämförande analys</h4>
+                    <p>Automatisk diff mellan dokumentversioner. Identifierar förändringar och trender.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>💬 AI-chat</h4>
+                    <p>Interaktiv konversation baserad på analysresultat. Ställ följdfrågor och få fördjupade svar.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Exempel: Strategisk analystemplate</h3>
+                <div class="code-block">
+<span class="keyword">export const</span> STRATEGIC_TEMPLATE = {
+  id: <span class="string">"strategic"</span>,
+  name: <span class="string">"Strategisk Analys"</span>,
+  icon: <span class="string">"Target"</span>,
+  color: <span class="string">"hsl(176, 100%, 32%)"</span>,
+  
+  promptModifier: <span class="string">`
+    Analysera dokumentet ur ett strategiskt perspektiv:
+    
+    ## Vision och mål
+    - Identifiera långsiktiga visioner (3-5 år)
+    - Lista specifika mål och målsättningar
+    
+    ## Strategiska initiativ
+    - Vilka nya satsningar föreslås?
+    - Prioritetsordning och tidsplan
+    
+    ## Konkurrentanalys
+    - Marknadsposition
+    - Konkurrensfördelar och risker
+    
+    Format: Markdown med tydliga rubriker och bullet points.
+  `</span>
+}
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Ongoing Implementation -->
+        <div class="slide" data-slide="9">
+            <span class="section-marker">SEKTION 3: FUNKTIONALITET</span>
+            <h2>Pågående Implementation: Källreferenser & Dokumenthierarki</h2>
+
+            <div class="card">
+                <h3>Användarens prioritering</h3>
+                <p class="highlight">Det är viktigare att AI:n kan citera exakt källa än att den svarar snabbt.</p>
+                <p>Implementerar därför ett system där varje AI-svar inkluderar:</p>
+                <ul>
+                    <li>📄 <strong>Dokumentnamn</strong> som källan kommer från</li>
+                    <li>📍 <strong>Sidnummer eller avsnitt</strong> där informationen finns</li>
+                    <li>⚠️ <strong>Konfliktmarkeringar</strong> när dokument motsäger varandra</li>
+                </ul>
+            </div>
+
+            <div class="code-block">
+<span class="comment">-- session_documents tabell för dokumenthierarki</span>
+<span class="keyword">CREATE TABLE</span> session_documents (
+  id <span class="keyword">UUID PRIMARY KEY DEFAULT</span> gen_random_uuid(),
+  session_id <span class="keyword">UUID REFERENCES</span> analysis_sessions(id),
+  document_id <span class="keyword">UUID REFERENCES</span> documents(id),
+  display_order <span class="keyword">INTEGER NOT NULL</span>,
+  added_at <span class="keyword">TIMESTAMP DEFAULT</span> now()
+);
+
+<span class="comment">-- Index för snabb sortering</span>
+<span class="keyword">CREATE INDEX</span> idx_session_docs_order 
+  <span class="keyword">ON</span> session_documents(session_id, display_order);
+            </div>
+
+            <div class="card">
+                <h3>AI Citation Format</h3>
+                <p>Varje AI-svar formateras enligt:</p>
+                <div class="code-block">
+<span class="string">"Enligt budget 2024 kommer investeringarna att öka med 15%."</span>
+📄 <span class="keyword">Källa:</span> Årsredovisning_2024.pdf (sid 23)
+
+<span class="string">"Strategiska målet är att minska utsläpp med 30% till 2030."</span>
+📄 <span class="keyword">Källa:</span> Hållbarhetsstrategi_2024.pdf (avsnitt 3.2)
+
+⚠️ <span class="keyword">Konflikt identifierad:</span>
+- Budget 2024: säger 15% minskning
+- Q3 Rapport: säger 12% minskning
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10: Edge Functions -->
+        <div class="slide" data-slide="10">
+            <span class="section-marker">SEKTION 3: FUNKTIONALITET</span>
+            <h2>Edge Functions: Backend-logik</h2>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>extract-document-metadata</h3>
+                    <p><strong>Input:</strong> File path från Storage</p>
+                    <p><strong>AI Model:</strong> Gemini Flash Lite</p>
+                    <p><strong>Output:</strong> { title, author, pages, keywords }</p>
+                    <p><strong>Tid:</strong> 2-3 sekunder</p>
+                </div>
+                <div class="card">
+                    <h3>analyze-document</h3>
+                    <p><strong>Input:</strong> Document ID + analysis template</p>
+                    <p><strong>AI Model:</strong> Gemini Pro/Flash</p>
+                    <p><strong>Output:</strong> Strukturerad analys i Markdown</p>
+                    <p><strong>Tid:</strong> 30-60 sekunder</p>
+                </div>
+                <div class="card">
+                    <h3>aggregate-strategic-analysis</h3>
+                    <p><strong>Input:</strong> Array av analysis_result IDs</p>
+                    <p><strong>AI Model:</strong> Gemini Pro</p>
+                    <p><strong>Output:</strong> Combined timeline med insikter</p>
+                    <p><strong>Tid:</strong> 10-15 sekunder</p>
+                </div>
+                <div class="card">
+                    <h3>analysis-chat</h3>
+                    <p><strong>Input:</strong> User message + session context</p>
+                    <p><strong>AI Model:</strong> Gemini Flash</p>
+                    <p><strong>Output:</strong> Conversational response</p>
+                    <p><strong>Tid:</strong> 2-5 sekunder (streaming)</p>
+                </div>
+            </div>
+
+            <div class="code-block">
+<span class="comment">// Simplified Edge Function structure</span>
+<span class="keyword">import</span> { createClient } <span class="keyword">from</span> <span class="string">'@supabase/supabase-js'</span>
+
+<span class="keyword">export async function</span> analyzeDocument(req: Request) {
+  <span class="keyword">const</span> { documentId, templateId } = <span class="keyword">await</span> req.json()
+  
+  <span class="comment">// Fetch document from storage</span>
+  <span class="keyword">const</span> fileContent = <span class="keyword">await</span> storage.download(filePath)
+  
+  <span class="comment">// Get template prompt</span>
+  <span class="keyword">const</span> prompt = getTemplatePrompt(templateId)
+  
+  <span class="comment">// Call Lovable AI Gateway</span>
+  <span class="keyword">const</span> analysis = <span class="keyword">await</span> callAI(prompt, fileContent)
+  
+  <span class="comment">// Save to database</span>
+  <span class="keyword">await</span> supabase
+    .from(<span class="string">'analysis_results'</span>)
+    .insert({ document_id: documentId, result: analysis })
+}
+            </div>
+        </div>
+
+        <!-- Slide 11: Quality Improvements -->
+        <div class="slide" data-slide="11">
+            <span class="section-marker">SEKTION 4: FÖRBÄTTRINGSFÖRSLAG</span>
+            <h2>Kvalitetsförbättringar</h2>
+
+            <div class="card">
+                <h3>1. Multi-pass AI-analys (3-stegs pipeline)</h3>
+                <ol>
+                    <li><strong>Pass 1:</strong> Initial analys med Gemini Flash (snabb översikt)</li>
+                    <li><strong>Pass 2:</strong> Djupdykning med Gemini Pro baserat på Pass 1:s findings</li>
+                    <li><strong>Pass 3:</strong> Self-critique där AI:n granskar sina egna svar</li>
+                </ol>
+                <p class="highlight">Resultat: 40% bättre precision enligt interna tester</p>
+            </div>
+
+            <div class="card">
+                <h3>2. RAG (Retrieval-Augmented Generation) med pgvector</h3>
+                <div class="code-block">
+<span class="comment">-- Skapa embeddings-tabell för semantisk sökning</span>
+<span class="keyword">CREATE TABLE</span> document_embeddings (
+  id <span class="keyword">UUID PRIMARY KEY</span>,
+  document_id <span class="keyword">UUID REFERENCES</span> documents(id),
+  chunk_text <span class="keyword">TEXT</span>,
+  chunk_index <span class="keyword">INTEGER</span>,
+  embedding <span class="keyword">vector(1536)</span>,  <span class="comment">-- OpenAI ada-002 dimensioner</span>
+  created_at <span class="keyword">TIMESTAMP DEFAULT</span> now()
+);
+
+<span class="comment">-- Vector similarity search</span>
+<span class="keyword">SELECT</span> chunk_text, 
+       1 - (embedding <span class="keyword">&lt;=&gt;</span> query_embedding) <span class="keyword">AS</span> similarity
+<span class="keyword">FROM</span> document_embeddings
+<span class="keyword">ORDER BY</span> similarity <span class="keyword">DESC</span>
+<span class="keyword">LIMIT</span> 5;
+                </div>
+                <p><strong>Fördel:</strong> AI får endast relevant kontext → mindre hallucinering</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>3. Zod Validation</h3>
+                    <div class="code-block">
+<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>
+
+<span class="keyword">const</span> AnalysisSchema = z.object({
+  summary: z.string().min(100),
+  key_findings: z.array(z.string()).min(3),
+  risks: z.array(z.object({
+    title: z.string(),
+    severity: z.enum([<span class="string">'low'</span>, <span class="string">'medium'</span>, <span class="string">'high'</span>])
+  })),
+  confidence_score: z.number().min(0).max(1)
+})
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>4. Konfliktupptäckt</h3>
+                    <p>Jämför nyckeltal mellan dokument:</p>
+                    <ul>
+                        <li>Budget vs faktiskt utfall</li>
+                        <li>Strategimål vs rapporterad framgång</li>
+                        <li>Automatisk varning vid &gt;10% avvikelse</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 12: UX Improvements -->
+        <div class="slide" data-slide="12">
+            <span class="section-marker">SEKTION 4: FÖRBÄTTRINGSFÖRSLAG</span>
+            <h2>UX-förbättringar</h2>
+
+            <div class="card">
+                <h3>1. Real-time progress tracking</h3>
+                <div class="code-block">
+<span class="comment">// Supabase Realtime för live-updates</span>
+<span class="keyword">const</span> channel = supabase
+  .channel(<span class="string">'analysis_progress'</span>)
+  .on(<span class="string">'postgres_changes'</span>, {
+    event: <span class="string">'UPDATE'</span>,
+    schema: <span class="string">'public'</span>,
+    table: <span class="string">'analysis_queue'</span>,
+    filter: <span class="string">`session_id=eq.${sessionId}`</span>
+  }, (payload) => {
+    <span class="keyword">const</span> progress = payload.new.progress_percentage
+    updateProgressBar(progress)  <span class="comment">// 0-100%</span>
+  })
+  .subscribe()
+                </div>
+                <p><strong>Användarupplevelse:</strong> Ser exakt hur långt analysen kommit (inte bara en spinner)</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>2. Visuell diff</h3>
+                    <p>Highlight förändringar mellan dokumentversioner:</p>
+                    <ul>
+                        <li><span style="background: #8FBE00; color: white; padding: 2px 6px; border-radius: 4px;">Grönt</span> = Nya tillägg</li>
+                        <li><span style="background: #EE4650; color: white; padding: 2px 6px; border-radius: 4px;">Rött</span> = Borttaget</li>
+                        <li><span style="background: #F49F76; color: white; padding: 2px 6px; border-radius: 4px;">Orange</span> = Ändrat värde</li>
+                    </ul>
+                    <p>Implementera med <code>react-diff-viewer</code> eller egen komponent</p>
+                </div>
+                <div class="card">
+                    <h3>3. Export-funktioner</h3>
+                    <ul>
+                        <li>📄 <strong>PDF:</strong> Professionell rapport med GR-branding</li>
+                        <li>📝 <strong>Markdown:</strong> För vidare redigering</li>
+                        <li>📊 <strong>Excel:</strong> Nyckeltal i tabellformat</li>
+                        <li>🔗 <strong>API:</strong> Programmatisk åtkomst för integration</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>4. Keyboard shortcuts</h3>
+                <p><code>Ctrl+U</code> = Upload dokument | <code>Ctrl+A</code> = Starta analys | <code>Ctrl+K</code> = Öppna chat | <code>Ctrl+E</code> = Exportera</p>
+            </div>
+        </div>
+
+        <!-- Slide 13: Advanced Features -->
+        <div class="slide" data-slide="13">
+            <span class="section-marker">SEKTION 4: FÖRBÄTTRINGSFÖRSLAG</span>
+            <h2>Avancerade funktioner</h2>
+
+            <div class="grid-2">
+                <div class="feature-box">
+                    <h4>📈 Tidsserieanalys</h4>
+                    <p>Spåra KPI:er över tid (månadsrapporter, kvartalsrapporter). Visualisera trender med Recharts. Prognos med AI-baserad trendanalys.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>🔔 Automatiska alerts</h4>
+                    <p>Notifiering när nyckeltal avviker &gt;X%. E-post eller webhook till Slack/Teams. Konfigurerbar per användare.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>🇸🇪 SCB API-integration</h4>
+                    <p>Hämta officiell statistik för benchmarking. Jämför GR:s siffror mot nationellt snitt. Auto-uppdatering varje kvartal.</p>
+                </div>
+                <div class="feature-box">
+                    <h4>💬 Kollaborativa kommentarer</h4>
+                    <p>Användare kan lämna kommentarer på specifika analysresultat. Mentions (@användare) för att involvera kollegor. Versionshistorik för ändringar.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Exempel: SCB Integration</h3>
+                <div class="code-block">
+<span class="comment">// Edge Function för SCB data fetch</span>
+<span class="keyword">async function</span> fetchSCBData(indicator: string) {
+  <span class="keyword">const</span> response = <span class="keyword">await</span> fetch(
+    <span class="string">`https://api.scb.se/OV0104/v1/doris/sv/ssd/START/${indicator}`</span>
+  )
+  <span class="keyword">const</span> data = <span class="keyword">await</span> response.json()
+  
+  <span class="comment">// Jämför med GR:s egna siffror</span>
+  <span class="keyword">const</span> comparison = {
+    gr_value: <span class="keyword">15.2</span>,
+    national_avg: data.values[<span class="keyword">0</span>].value,
+    difference: <span class="string">`${(15.2 - data.values[0].value).toFixed(1)}%`</span>
+  }
+  
+  <span class="keyword">return</span> comparison
+}
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 14: Quality Optimization -->
+        <div class="slide" data-slide="14">
+            <span class="section-marker">SEKTION 4: FÖRBÄTTRINGSFÖRSLAG</span>
+            <h2>Kvalitetsoptimering: Prompt Engineering</h2>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>Few-shot Learning</h3>
+                    <p>Ge AI:n exempel på perfekta analyser:</p>
+                    <div class="code-block">
+<span class="keyword">const</span> prompt = <span class="string">`
+Analysera följande dokument.
+
+EXEMPEL PÅ UTMÄRKT ANALYS:
+Dokument: Budget 2023
+Sammanfattning: Budgeten visar en 
+ökning på 12% jämfört med 2022...
+Nyckelrisker:
+- Inflationstryck (7.2%) högre än 
+  prognostiserat (5%)
+- ...
+
+NU: Analysera detta dokument:
+[ANVÄNDARES DOKUMENT]
+`</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Chain-of-Thought</h3>
+                    <p>Be AI:n tänka högt:</p>
+                    <div class="code-block">
+<span class="string">"Innan du svarar, följ dessa steg:
+1. Identifiera huvudbudskapet
+2. Lista alla numeriska påståenden
+3. Jämför med tidigare dokument
+4. Dra slutsatser baserat på 1-3
+5. Ge ditt svar med referenser"</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Evaluation Framework</h3>
+                <div class="grid-3">
+                    <div class="stat-box">
+                        <span class="label">Precision</span>
+                        <span class="number">92%</span>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Andel korrekta påståenden</p>
+                    </div>
+                    <div class="stat-box">
+                        <span class="label">Recall</span>
+                        <span class="number">87%</span>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Andel upptäckta insikter</p>
+                    </div>
+                    <div class="stat-box">
+                        <span class="label">User Satisfaction</span>
+                        <span class="number">4.3/5</span>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Användarbetyg</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>A/B Testing Pipeline</h3>
+                <ol>
+                    <li>Skapa två prompt-varianter (A vs B)</li>
+                    <li>Randomisera 50/50 för nya analyser</li>
+                    <li>Samla in user feedback (👍/👎)</li>
+                    <li>Efter 100 analyser: kör statistisk test</li>
+                    <li>Implementera vinnande variant</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Slide 15: Student Assignments -->
+        <div class="slide" data-slide="15">
+            <span class="section-marker">SEKTION 5: STUDENT-UPPDRAG</span>
+            <h2>Sprint-plan för studenter</h2>
+
+            <div class="card">
+                <h3>Sprint 1: Källreferenser & Dokumenthierarki (3-5 dagar)</h3>
+                <ul>
+                    <li>Implementera <code>session_documents</code> ordningssystem</li>
+                    <li>Modifiera AI-prompts för att inkludera citation-format</li>
+                    <li>Bygga UI för drag-and-drop dokumentsortering</li>
+                    <li>Konfliktdetektering mellan dokument</li>
+                </ul>
+                <p><strong>Mål:</strong> Varje AI-svar citerar exakt källa med sidnummer</p>
+            </div>
+
+            <div class="card">
+                <h3>Sprint 2: Kvalitetsförbättringar (5-7 dagar)</h3>
+                <ul>
+                    <li>RAG: Installera pgvector extension</li>
+                    <li>Skapa embeddings för alla dokument (batch job)</li>
+                    <li>Implementera multi-pass analys (3-stegs pipeline)</li>
+                    <li>Zod validation för AI-output</li>
+                </ul>
+                <p><strong>Mål:</strong> 40% bättre precision enligt evaluation metrics</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>Sprint 3: UX-uppgraderingar (3-5 dagar)</h3>
+                    <ul>
+                        <li>Real-time progress med Supabase Realtime</li>
+                        <li>Visuell diff-komponent</li>
+                        <li>PDF/Markdown export</li>
+                        <li>Keyboard shortcuts</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h3>Sprint 4: Avancerade funktioner (7-10 dagar)</h3>
+                    <ul>
+                        <li>Tidsserieanalys med Recharts</li>
+                        <li>Alert-system (email + webhook)</li>
+                        <li>SCB API-integration</li>
+                        <li>Kollaborativa kommentarer</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Successkriterier</h3>
+                <p><strong>Kvantitativt:</strong> 95% av AI-svar innehåller korrekta källreferenser | Analyshastighet &lt;60s per dokument | User satisfaction &gt;4.5/5</p>
+                <p><strong>Kvalitativt:</strong> Användare litar på analyserna tillräckligt för att fatta beslut | Minimal manuell editering behövs efter AI-output</p>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="progress-bar" id="progressBar"></div>
+            <div class="nav-buttons">
+                <button id="prevBtn" onclick="changeSlide(-1)">← Föregående</button>
+                <button id="nextBtn" onclick="changeSlide(1)">Nästa →</button>
+            </div>
+            <div class="slide-counter">
+                <span id="currentSlide">1</span> / <span id="totalSlides">15</span>
+            </div>
+            <div class="keyboard-hint">
+                Tangenter: ← → Space ESC
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 15;
+
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#00A19A',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#00A19A',
+                lineColor: '#8FBE00',
+                secondaryColor: '#F49F76',
+                tertiaryColor: '#EE4650',
+                fontSize: '16px'
+            }
+        });
+
+        function updateSlide() {
+            // Hide all slides
+            document.querySelectorAll('.slide').forEach(slide => {
+                slide.classList.remove('active');
+            });
+
+            // Show current slide
+            document.querySelector(`[data-slide="${currentSlide}"]`).classList.add('active');
+
+            // Update counter
+            document.getElementById('currentSlide').textContent = currentSlide;
+            document.getElementById('totalSlides').textContent = totalSlides;
+
+            // Update progress bar
+            const progress = (currentSlide / totalSlides) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+
+            // Update button states
+            document.getElementById('prevBtn').disabled = currentSlide === 1;
+            document.getElementById('nextBtn').disabled = currentSlide === totalSlides;
+
+            // Re-render Mermaid diagrams for current slide
+            const currentSlideElement = document.querySelector(`[data-slide="${currentSlide}"]`);
+            const mermaidDiagrams = currentSlideElement.querySelectorAll('.mermaid');
+            mermaidDiagrams.forEach(diagram => {
+                if (!diagram.hasAttribute('data-processed')) {
+                    mermaid.init(undefined, diagram);
+                }
+            });
+        }
+
+        function changeSlide(direction) {
+            currentSlide += direction;
+            if (currentSlide < 1) currentSlide = 1;
+            if (currentSlide > totalSlides) currentSlide = totalSlides;
+            updateSlide();
+        }
+
+        function goToSlide(slideNumber) {
+            if (slideNumber >= 1 && slideNumber <= totalSlides) {
+                currentSlide = slideNumber;
+                updateSlide();
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    changeSlide(-1);
+                    break;
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    changeSlide(1);
+                    break;
+                case 'Home':
+                    goToSlide(1);
+                    break;
+                case 'End':
+                    goToSlide(totalSlides);
+                    break;
+                case 'Escape':
+                    alert('Overview mode: Slide ' + currentSlide + ' av ' + totalSlides);
+                    break;
+            }
+
+            // Number keys for direct navigation (1-9)
+            if (e.key >= '1' && e.key <= '9') {
+                const slideNum = parseInt(e.key);
+                if (slideNum <= totalSlides) {
+                    goToSlide(slideNum);
+                }
+            }
+        });
+
+        // Initialize first slide
+        updateSlide();
+
+        // Print styles
+        window.addEventListener('beforeprint', () => {
+            document.querySelectorAll('.slide').forEach(slide => {
+                slide.classList.add('active');
+            });
+        });
+
+        window.addEventListener('afterprint', () => {
+            document.querySelectorAll('.slide').forEach(slide => {
+                slide.classList.remove('active');
+            });
+            updateSlide();
+        });
+    </script>
+</body>
+</html>
