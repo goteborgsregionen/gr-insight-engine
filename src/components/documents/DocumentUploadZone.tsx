@@ -178,8 +178,17 @@ export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps
 
           if (dbError) throw dbError;
 
-          // Trigger auto-analysis in background with selected analysis type
+          // Trigger metadata extraction first (fast, 2-3 sec)
           if (insertedDoc) {
+            supabase.functions.invoke('extract-document-metadata', {
+              body: { document_id: insertedDoc.id }
+            }).then(() => {
+              console.log(`Metadata extraction started for document ${insertedDoc.id}`);
+            }).catch((err) => {
+              console.error('Failed to trigger metadata extraction:', err);
+            });
+            
+            // Then trigger full analysis in background
             supabase.functions.invoke('analyze-document', {
               body: { 
                 documentId: insertedDoc.id,

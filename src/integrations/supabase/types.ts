@@ -254,16 +254,22 @@ export type Database = {
       }
       documents: {
         Row: {
+          auto_tagged_at: string | null
           content_hash: string | null
+          document_category: string | null
           file_name: string
           file_path: string
           file_size: number | null
           file_type: string
           id: string
+          internal_title: string | null
           is_latest_version: boolean
           metadata: Json | null
+          organization: string | null
           parent_document_id: string | null
           status: string | null
+          tags: string[] | null
+          time_period: string | null
           title: string
           uploaded_at: string | null
           uploaded_by: string | null
@@ -271,16 +277,22 @@ export type Database = {
           version_number: number
         }
         Insert: {
+          auto_tagged_at?: string | null
           content_hash?: string | null
+          document_category?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
           file_type: string
           id?: string
+          internal_title?: string | null
           is_latest_version?: boolean
           metadata?: Json | null
+          organization?: string | null
           parent_document_id?: string | null
           status?: string | null
+          tags?: string[] | null
+          time_period?: string | null
           title: string
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -288,16 +300,22 @@ export type Database = {
           version_number?: number
         }
         Update: {
+          auto_tagged_at?: string | null
           content_hash?: string | null
+          document_category?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null
           file_type?: string
           id?: string
+          internal_title?: string | null
           is_latest_version?: boolean
           metadata?: Json | null
+          organization?: string | null
           parent_document_id?: string | null
           status?: string | null
+          tags?: string[] | null
+          time_period?: string | null
           title?: string
           uploaded_at?: string | null
           uploaded_by?: string | null

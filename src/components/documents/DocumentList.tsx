@@ -52,7 +52,14 @@ export function DocumentList() {
         .order("uploaded_at", { ascending: false });
 
       if (error) throw error;
-      return data as Document[];
+      return data as (Document & {
+        internal_title?: string | null;
+        document_category?: string | null;
+        tags?: string[] | null;
+        time_period?: string | null;
+        organization?: string | null;
+        auto_tagged_at?: string | null;
+      })[];
     },
   });
 
@@ -60,10 +67,14 @@ export function DocumentList() {
     if (!documents) return [];
     
     return documents.filter((doc) => {
-      // Search filter
+      // Search filter - now includes internal_title, tags, category, organization
       const matchesSearch = searchQuery === "" || 
         doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.file_name.toLowerCase().includes(searchQuery.toLowerCase());
+        doc.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doc.internal_title && doc.internal_title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (doc.document_category && doc.document_category.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (doc.organization && doc.organization.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (doc.tags && doc.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
       
       // File type filter
       const matchesFileType = fileTypeFilter === "all" || doc.file_type.includes(fileTypeFilter);
@@ -191,10 +202,18 @@ export function DocumentList() {
     );
   }
 
-  const renderDocument = (doc: Document, isLatest: boolean = true) => {
+  const renderDocument = (doc: Document & {
+    internal_title?: string | null;
+    document_category?: string | null;
+    tags?: string[] | null;
+    time_period?: string | null;
+    organization?: string | null;
+  }, isLatest: boolean = true) => {
     const Icon = getFileIcon(doc.file_type);
     const analysisType = (doc as any).analysis_results?.[0]?.analysis_type;
     const template = ANALYSIS_TEMPLATES.find(t => t.id === analysisType);
+    
+    const displayTitle = doc.internal_title || doc.title;
     
     return (
       <Card key={doc.id} className={!isLatest ? "ml-8" : ""}>
@@ -204,10 +223,19 @@ export function DocumentList() {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Icon className="h-6 w-6 text-primary" />
               </div>
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-lg">{doc.title}</CardTitle>
+                  <CardTitle className="text-lg">{displayTitle}</CardTitle>
                   <VersionBadge version={doc.version_number} isLatest={doc.is_latest_version} />
+                  
+                  {/* Document Category Badge */}
+                  {doc.document_category && (
+                    <Badge variant="secondary" className="text-xs">
+                      {doc.document_category}
+                    </Badge>
+                  )}
+                  
+                  {/* Analysis Type Badge */}
                   {analysisType && template && (
                     <Badge variant="outline" className={`text-${template.color}-600 border-${template.color}-600`}>
                       {(() => {
@@ -223,14 +251,36 @@ export function DocumentList() {
                     </Badge>
                   )}
                 </div>
+                
                 <CardDescription className="mt-1">
-                  {doc.file_type.split("/")[1]?.toUpperCase() || "UNKNOWN"} •{" "}
+                  {doc.file_name} • {doc.file_type.split("/")[1]?.toUpperCase() || "UNKNOWN"} •{" "}
                   {formatFileSize(doc.file_size)} •{" "}
                   {formatDistanceToNow(new Date(doc.uploaded_at), {
                     addSuffix: true,
                     locale: sv,
                   })}
                 </CardDescription>
+                
+                {/* Tags */}
+                {doc.tags && doc.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {doc.tags.map((tag, idx) => (
+                      <Badge key={idx} variant="outline" className="text-xs">
+                        #{tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Additional metadata */}
+                {(doc.time_period || doc.organization) && (
+                  <div className="text-xs text-muted-foreground mt-2">
+                    {doc.time_period && <span>📅 {doc.time_period}</span>}
+                    {doc.time_period && doc.organization && <span> • </span>}
+                    {doc.organization && <span>🏢 {doc.organization}</span>}
+                  </div>
+                )}
+                
                 {doc.version_notes && (
                   <p className="text-sm text-muted-foreground mt-2 italic">
                     {doc.version_notes}
