@@ -2,8 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight, Search, Filter } from "lucide-react";
+import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight, Search, Filter, BarChart3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { sv } from "date-fns/locale";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export function DocumentList() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -289,6 +291,16 @@ export function DocumentList() {
               </div>
             </div>
             <div className="flex gap-2">
+              {doc.evidence_extracted && doc.evidence_count > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/documents/${doc.id}/evidence`)}
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Evidens ({doc.evidence_count})
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"

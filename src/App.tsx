@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import Analysis from "./pages/Analysis";
 import AnalysisWorkspace from "./pages/AnalysisWorkspace";
 import Presentation from "./pages/Presentation";
+import DocumentEvidence from "./pages/DocumentEvidence";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +91,10 @@ const App = () => {
             <Route
               path="/presentation"
               element={session ? <Presentation /> : <Navigate to="/" />}
+            />
+            <Route
+              path="/documents/:documentId/evidence"
+              element={session ? <DocumentEvidence /> : <Navigate to="/" />}
             />
             <Route
               path="/settings"

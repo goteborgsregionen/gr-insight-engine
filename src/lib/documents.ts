@@ -15,6 +15,9 @@ export interface Document {
   parent_document_id: string | null;
   is_latest_version: boolean;
   version_notes: string | null;
+  evidence_extracted?: boolean;
+  evidence_count?: number;
+  extraction_completed_at?: string | null;
 }
 
 export interface DocumentGroup {

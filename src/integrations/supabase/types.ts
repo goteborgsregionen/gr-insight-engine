@@ -143,11 +143,15 @@ export type Database = {
           analysis_result: Json | null
           analysis_type: string
           chat_history: Json[] | null
+          claims_count: number | null
           completed_at: string | null
           context_template_ids: string[] | null
           created_at: string | null
+          critique_passed: boolean | null
+          critique_results: Json | null
           custom_prompt: string | null
           document_ids: string[]
+          ercw_version: string | null
           full_prompt_preview: string | null
           id: string
           merged_context: Json | null
@@ -160,11 +164,15 @@ export type Database = {
           analysis_result?: Json | null
           analysis_type?: string
           chat_history?: Json[] | null
+          claims_count?: number | null
           completed_at?: string | null
           context_template_ids?: string[] | null
           created_at?: string | null
+          critique_passed?: boolean | null
+          critique_results?: Json | null
           custom_prompt?: string | null
           document_ids: string[]
+          ercw_version?: string | null
           full_prompt_preview?: string | null
           id?: string
           merged_context?: Json | null
@@ -177,11 +185,15 @@ export type Database = {
           analysis_result?: Json | null
           analysis_type?: string
           chat_history?: Json[] | null
+          claims_count?: number | null
           completed_at?: string | null
           context_template_ids?: string[] | null
           created_at?: string | null
+          critique_passed?: boolean | null
+          critique_results?: Json | null
           custom_prompt?: string | null
           document_ids?: string[]
+          ercw_version?: string | null
           full_prompt_preview?: string | null
           id?: string
           merged_context?: Json | null
@@ -191,6 +203,72 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      claims_posts: {
+        Row: {
+          actors: string[] | null
+          analysis_session_id: string | null
+          assumptions: string[] | null
+          claim_id: string
+          claim_type: string
+          created_at: string | null
+          document_id: string | null
+          evidence_ids: string[]
+          id: string
+          kpi_tags: string[] | null
+          notes: string | null
+          strength: string
+          text: string
+          updated_at: string | null
+        }
+        Insert: {
+          actors?: string[] | null
+          analysis_session_id?: string | null
+          assumptions?: string[] | null
+          claim_id: string
+          claim_type: string
+          created_at?: string | null
+          document_id?: string | null
+          evidence_ids?: string[]
+          id?: string
+          kpi_tags?: string[] | null
+          notes?: string | null
+          strength: string
+          text: string
+          updated_at?: string | null
+        }
+        Update: {
+          actors?: string[] | null
+          analysis_session_id?: string | null
+          assumptions?: string[] | null
+          claim_id?: string
+          claim_type?: string
+          created_at?: string | null
+          document_id?: string | null
+          evidence_ids?: string[]
+          id?: string
+          kpi_tags?: string[] | null
+          notes?: string | null
+          strength?: string
+          text?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claims_posts_analysis_session_id_fkey"
+            columns: ["analysis_session_id"]
+            isOneToOne: false
+            referencedRelation: "analysis_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claims_posts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comparative_analysis: {
         Row: {
@@ -257,6 +335,9 @@ export type Database = {
           auto_tagged_at: string | null
           content_hash: string | null
           document_category: string | null
+          evidence_count: number | null
+          evidence_extracted: boolean | null
+          extraction_completed_at: string | null
           file_name: string
           file_path: string
           file_size: number | null
@@ -280,6 +361,9 @@ export type Database = {
           auto_tagged_at?: string | null
           content_hash?: string | null
           document_category?: string | null
+          evidence_count?: number | null
+          evidence_extracted?: boolean | null
+          extraction_completed_at?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
@@ -303,6 +387,9 @@ export type Database = {
           auto_tagged_at?: string | null
           content_hash?: string | null
           document_category?: string | null
+          evidence_count?: number | null
+          evidence_extracted?: boolean | null
+          extraction_completed_at?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null
@@ -326,6 +413,68 @@ export type Database = {
           {
             foreignKeyName: "documents_parent_document_id_fkey"
             columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_posts: {
+        Row: {
+          created_at: string | null
+          document_id: string
+          evidence_id: string
+          headers: Json | null
+          id: string
+          notes: string | null
+          page: number
+          quote: string | null
+          rows: Json | null
+          section: string | null
+          source_loc: string
+          table_ref: string | null
+          type: string
+          unit_notes: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          document_id: string
+          evidence_id: string
+          headers?: Json | null
+          id?: string
+          notes?: string | null
+          page: number
+          quote?: string | null
+          rows?: Json | null
+          section?: string | null
+          source_loc: string
+          table_ref?: string | null
+          type: string
+          unit_notes?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          document_id?: string
+          evidence_id?: string
+          headers?: Json | null
+          id?: string
+          notes?: string | null
+          page?: number
+          quote?: string | null
+          rows?: Json | null
+          section?: string | null
+          source_loc?: string
+          table_ref?: string | null
+          type?: string
+          unit_notes?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_posts_document_id_fkey"
+            columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
             referencedColumns: ["id"]
