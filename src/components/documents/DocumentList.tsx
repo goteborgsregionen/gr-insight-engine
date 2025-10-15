@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight, Search, Filter, BarChart3 } from "lucide-react";
+import { Download, Trash2, FileText, File as FileIcon, Table, ChevronDown, ChevronRight, Search, Filter, BarChart3, Sparkles, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { sv } from "date-fns/locale";
@@ -177,6 +177,24 @@ export function DocumentList() {
     },
   });
 
+  const extractEvidence = useMutation({
+    mutationFn: async (documentId: string) => {
+      const { data, error } = await supabase.functions.invoke('extract-evidence', {
+        body: { documentId },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.success(`Evidens extraherad! ${data.evidenceCount} poster skapade.`);
+    },
+    onError: (error: any) => {
+      toast.error(`Kunde inte extrahera evidens: ${error?.message || "Okänt fel"}`);
+    },
+  });
+
   const getFileIcon = (fileType: string) => {
     if (fileType.includes("pdf")) return FileText;
     if (fileType.includes("spreadsheet") || fileType.includes("excel")) return Table;
@@ -299,6 +317,21 @@ export function DocumentList() {
                 >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Evidens ({doc.evidence_count})
+                </Button>
+              )}
+              {!doc.evidence_extracted && doc.status === 'analyzed' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => extractEvidence.mutate(doc.id)}
+                  disabled={extractEvidence.isPending}
+                >
+                  {extractEvidence.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Extrahera Evidens
                 </Button>
               )}
               <Button
