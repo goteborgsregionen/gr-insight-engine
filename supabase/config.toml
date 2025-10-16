@@ -9,6 +9,15 @@ verify_jwt = true
 [functions.extract-evidence]
 verify_jwt = true
 
+[functions.critique-pre-write]
+verify_jwt = true
+
+[functions.critique-post-write]
+verify_jwt = true
+
+[functions.reason-claims]
+verify_jwt = true
+
 [functions.compare-documents]
 verify_jwt = true
 

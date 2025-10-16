@@ -330,6 +330,63 @@ export type Database = {
         }
         Relationships: []
       }
+      critique_results: {
+        Row: {
+          citation_coverage: number | null
+          conflicts: Json | null
+          created_at: string | null
+          document_id: string | null
+          id: string
+          numeric_issues: Json | null
+          passed: boolean
+          phase: string
+          session_id: string | null
+          unknown_evidence_ids: string[] | null
+          warnings: string[] | null
+        }
+        Insert: {
+          citation_coverage?: number | null
+          conflicts?: Json | null
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          numeric_issues?: Json | null
+          passed?: boolean
+          phase: string
+          session_id?: string | null
+          unknown_evidence_ids?: string[] | null
+          warnings?: string[] | null
+        }
+        Update: {
+          citation_coverage?: number | null
+          conflicts?: Json | null
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          numeric_issues?: Json | null
+          passed?: boolean
+          phase?: string
+          session_id?: string | null
+          unknown_evidence_ids?: string[] | null
+          warnings?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "critique_results_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "critique_results_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "analysis_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           auto_tagged_at: string | null
@@ -474,6 +531,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "evidence_posts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      extraction_metrics: {
+        Row: {
+          created_at: string | null
+          document_id: string | null
+          duration_ms: number | null
+          estimated_cost_usd: number | null
+          evidence_count: number | null
+          file_size_bytes: number | null
+          id: string
+          model: string | null
+          page_count: number | null
+          tokens_used: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          document_id?: string | null
+          duration_ms?: number | null
+          estimated_cost_usd?: number | null
+          evidence_count?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          model?: string | null
+          page_count?: number | null
+          tokens_used?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          document_id?: string | null
+          duration_ms?: number | null
+          estimated_cost_usd?: number | null
+          evidence_count?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          model?: string | null
+          page_count?: number | null
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extraction_metrics_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"

@@ -38,6 +38,9 @@ EVIDENCE FORMAT (JSON array, ett objekt per evidens):
 
 RULES:
 - Bevara siffror och enheter exakt (MSEK, %, mdr, t, kWh).
+- **NYTT**: Normalisera decimalseparator till punkt internt (12,5% → 12.5%), men behåll originalsträngen i notes.
+- **NYTT**: För figurer/diagram, inkludera caption och axlar/mått i notes.
+- **NYTT**: Om möjligt, lägg till cirka-koordinater (x1,y1,x2,y2) för klickbar källa i UI (valfritt).
 - Citat max 40 ord, ordagrant, med page/source_loc.
 - Ingen tolkning, inga slutsatser.
 - Om tabell > 20 rader: ta första 10 + sista 10 och markera om hur många rader som utelämnas.
@@ -50,6 +53,7 @@ serve(async (req) => {
   }
 
   try {
+    const startTime = Date.now(); // Track start time for metrics
     const { documentId } = await req.json();
 
     if (!documentId) {
@@ -120,12 +124,13 @@ serve(async (req) => {
             role: 'user',
             content: [
               { type: 'text', text: EXTRACT_PROMPT },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${document.file_type};base64,${base64Content}`
-                }
-              }
+        {
+          type: 'file',
+          file: {
+            data: base64Content,
+            mime_type: 'application/pdf'
+          }
+        }
             ]
           }
         ],
@@ -222,12 +227,37 @@ serve(async (req) => {
 
     console.log('✅ Evidence extraction completed successfully');
 
+    // Log extraction metrics
+    const endTime = Date.now();
+    const durationMs = endTime - startTime;
+    
+    const { error: metricsError } = await supabase
+      .from('extraction_metrics')
+      .insert({
+        document_id: documentId,
+        duration_ms: durationMs,
+        evidence_count: evidencePosts.length,
+        file_size_bytes: arrayBuffer.byteLength,
+        model: 'google/gemini-2.5-flash',
+        created_at: new Date().toISOString()
+      });
+
+    if (metricsError) {
+      console.error('Failed to log metrics:', metricsError);
+    }
+
+    console.log(`📊 Metrics: ${durationMs}ms, ${evidencePosts.length} evidence, ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`);
+
     return new Response(
       JSON.stringify({
         success: true,
         documentId,
         evidenceCount: evidencePosts.length,
-        evidence: savedEvidence
+        evidence: savedEvidence,
+        metrics: {
+          durationMs,
+          fileSizeBytes: arrayBuffer.byteLength
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
