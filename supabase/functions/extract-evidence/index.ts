@@ -124,13 +124,12 @@ serve(async (req) => {
             role: 'user',
             content: [
               { type: 'text', text: EXTRACT_PROMPT },
-        {
-          type: 'file',
-          file: {
-            data: base64Content,
-            mime_type: 'application/pdf'
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:application/pdf;base64,${base64Content}`
+            }
           }
-        }
             ]
           }
         ],
