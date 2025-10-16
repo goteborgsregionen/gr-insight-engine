@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to convert ArrayBuffer to base64 without stack overflow
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; // 32KB chunks
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -58,7 +70,7 @@ serve(async (req) => {
 
     // Convert file to base64 for AI processing
     const arrayBuffer = await fileData.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const base64 = arrayBufferToBase64(arrayBuffer);
 
     // Call Lovable AI for metadata extraction
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -92,7 +104,18 @@ Regler:
           },
           {
             role: 'user',
-            content: `Extrahera metadata från detta dokument (filnamn: ${document.file_name}). Data: ${base64.substring(0, 10000)}`
+            content: [
+              { 
+                type: 'text', 
+                text: `Extrahera metadata från detta PDF-dokument (filnamn: ${document.file_name})` 
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64}`
+                }
+              }
+            ]
           }
         ],
         temperature: 0.3,
