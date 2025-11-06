@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Documents from "./pages/Documents";
 import DocumentUpload from "./pages/DocumentUpload";
 import Reports from "./pages/Reports";
+import InteractiveReportViewer from "./pages/InteractiveReportViewer";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Analysis from "./pages/Analysis";
@@ -75,6 +76,10 @@ const App = () => {
             <Route
               path="/reports"
               element={session ? <Reports /> : <Navigate to="/" />}
+            />
+            <Route
+              path="/reports/:reportId"
+              element={session ? <InteractiveReportViewer /> : <Navigate to="/" />}
             />
             <Route
               path="/analysis"

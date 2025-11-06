@@ -585,6 +585,41 @@ export type Database = {
           },
         ]
       }
+      report_views: {
+        Row: {
+          created_at: string | null
+          id: string
+          reading_time_seconds: number | null
+          session_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          reading_time_seconds?: number | null
+          session_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          reading_time_seconds?: number | null
+          session_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_views_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "analysis_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null

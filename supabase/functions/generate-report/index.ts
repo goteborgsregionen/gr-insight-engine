@@ -66,7 +66,7 @@ serve(async (req) => {
     // Convert full markdown output to HTML
     let contentHtml = '';
     if (result.full_markdown_output) {
-      contentHtml = marked.parse(result.full_markdown_output);
+      contentHtml = await marked.parse(result.full_markdown_output);
     } else {
       // Fallback to old structure if full_markdown_output is missing
       contentHtml = `<p>${result.summary || 'Ingen analys tillgänglig'}</p>`;
