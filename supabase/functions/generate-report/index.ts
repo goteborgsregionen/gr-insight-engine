@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { marked } from "https://esm.sh/marked@11.1.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,8 +54,27 @@ serve(async (req) => {
 
     console.log(`Generating report for session ${sessionId} in ${format} format`);
 
+    // Configure marked for better table rendering
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+    });
+
     // Build HTML report
     const result = session.analysis_result;
+    
+    // Convert full markdown output to HTML
+    let contentHtml = '';
+    if (result.full_markdown_output) {
+      contentHtml = marked.parse(result.full_markdown_output);
+    } else {
+      // Fallback to old structure if full_markdown_output is missing
+      contentHtml = `<p>${result.summary || 'Ingen analys tillgänglig'}</p>`;
+    }
+
+    // Base64 encode GR logo (black version for print/light background)
+    const grLogoBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    
     const html = `<!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -62,228 +82,263 @@ serve(async (req) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${session.title} - Analysrapport</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
     @media print {
-      body { margin: 0; }
+      body { 
+        margin: 0;
+        padding: 20mm;
+      }
       .no-print { display: none; }
+      header { page-break-after: avoid; }
+      h2 { page-break-after: avoid; }
+      table { page-break-inside: avoid; }
+      @page {
+        margin: 20mm;
+        @bottom-right {
+          content: "Sida " counter(page) " av " counter(pages);
+        }
+      }
     }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 900px;
-      margin: 40px auto;
-      padding: 20px;
-      background: white;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.7;
+      color: #1a1a1a;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #ffffff;
     }
+    
+    /* GR Brand Colors */
+    :root {
+      --gr-primary: #000000;
+      --gr-accent: #0066cc;
+      --gr-gray-100: #f8f9fa;
+      --gr-gray-200: #e9ecef;
+      --gr-gray-300: #dee2e6;
+      --gr-gray-600: #6c757d;
+      --gr-gray-900: #1a1a1a;
+    }
+    
+    /* Header with GR Logo */
     header {
-      border-bottom: 3px solid #0066cc;
-      padding-bottom: 20px;
+      border-bottom: 3px solid var(--gr-primary);
+      padding-bottom: 30px;
+      margin-bottom: 50px;
+      position: relative;
+    }
+    
+    .logo {
+      max-width: 200px;
+      height: auto;
       margin-bottom: 30px;
     }
+    
     h1 {
-      color: #0066cc;
-      margin: 0;
-      font-size: 2em;
+      color: var(--gr-primary);
+      margin: 0 0 15px 0;
+      font-size: 2.5em;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
+    
     .meta {
-      color: #666;
-      font-size: 0.9em;
-      margin-top: 10px;
-    }
-    h2 {
-      color: #0066cc;
-      border-bottom: 2px solid #eee;
-      padding-bottom: 10px;
-      margin-top: 30px;
-    }
-    h3 {
-      color: #444;
-      margin-top: 20px;
-    }
-    .summary {
-      background: #f8f9fa;
-      padding: 20px;
-      border-left: 4px solid #0066cc;
-      margin: 20px 0;
-    }
-    .documents {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 15px;
-      margin: 20px 0;
-    }
-    .doc-card {
-      background: #f8f9fa;
-      padding: 15px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-    }
-    .doc-card h4 {
-      margin: 0 0 5px 0;
-      color: #0066cc;
-    }
-    .keywords {
+      color: var(--gr-gray-600);
+      font-size: 0.95em;
+      margin-top: 15px;
       display: flex;
+      gap: 20px;
       flex-wrap: wrap;
-      gap: 8px;
+    }
+    
+    .meta p {
+      margin: 0;
+    }
+    
+    /* Typography */
+    h2 {
+      color: var(--gr-primary);
+      border-bottom: 2px solid var(--gr-gray-200);
+      padding-bottom: 12px;
+      margin-top: 50px;
+      margin-bottom: 25px;
+      font-size: 1.8em;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    
+    h3 {
+      color: var(--gr-gray-900);
+      margin-top: 30px;
+      margin-bottom: 15px;
+      font-size: 1.4em;
+      font-weight: 600;
+    }
+    
+    h4 {
+      color: var(--gr-gray-900);
+      margin-top: 25px;
+      margin-bottom: 12px;
+      font-size: 1.15em;
+      font-weight: 600;
+    }
+    
+    p {
+      margin: 0 0 15px 0;
+    }
+    
+    /* Content sections */
+    main {
+      margin-bottom: 60px;
+    }
+    
+    /* Lists */
+    ul, ol {
       margin: 15px 0;
+      padding-left: 25px;
     }
-    .keyword {
-      background: #0066cc;
+    
+    li {
+      margin-bottom: 10px;
+      line-height: 1.7;
+    }
+    
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 25px 0;
+      font-size: 0.95em;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    thead tr {
+      background-color: var(--gr-primary);
       color: white;
-      padding: 5px 12px;
-      border-radius: 15px;
-      font-size: 0.85em;
+      text-align: left;
+      font-weight: 600;
     }
-    ul {
-      list-style: none;
+    
+    th, td {
+      padding: 14px 16px;
+      border: 1px solid var(--gr-gray-300);
+    }
+    
+    tbody tr {
+      border-bottom: 1px solid var(--gr-gray-300);
+    }
+    
+    tbody tr:nth-of-type(even) {
+      background-color: var(--gr-gray-100);
+    }
+    
+    tbody tr:hover {
+      background-color: #e3f2fd;
+    }
+    
+    /* Code blocks */
+    code {
+      background: var(--gr-gray-100);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+    
+    pre {
+      background: var(--gr-gray-100);
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      border-left: 4px solid var(--gr-accent);
+    }
+    
+    pre code {
+      background: none;
       padding: 0;
     }
-    li {
-      padding: 8px 0;
-      border-bottom: 1px solid #eee;
+    
+    /* Blockquotes */
+    blockquote {
+      background: var(--gr-gray-100);
+      border-left: 4px solid var(--gr-accent);
+      margin: 20px 0;
+      padding: 15px 20px;
+      font-style: italic;
+      color: var(--gr-gray-900);
     }
-    li:last-child {
-      border-bottom: none;
+    
+    /* Links */
+    a {
+      color: var(--gr-accent);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
     }
-    li::before {
-      content: "▸ ";
-      color: #0066cc;
-      font-weight: bold;
-      margin-right: 8px;
+    
+    a:hover {
+      border-bottom-color: var(--gr-accent);
     }
+    
+    /* Horizontal rules */
+    hr {
+      border: none;
+      border-top: 2px solid var(--gr-gray-200);
+      margin: 40px 0;
+    }
+    
+    /* Footer */
     footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 2px solid #eee;
+      margin-top: 60px;
+      padding-top: 30px;
+      border-top: 2px solid var(--gr-gray-200);
       text-align: center;
-      color: #666;
-      font-size: 0.85em;
+      color: var(--gr-gray-600);
+      font-size: 0.9em;
     }
+    
+    footer p {
+      margin: 5px 0;
+    }
+    
+    /* Utility classes */
+    .text-center { text-align: center; }
+    .mt-4 { margin-top: 40px; }
+    .mb-4 { margin-bottom: 40px; }
   </style>
 </head>
 <body>
   <header>
+    <img src="/logo-horizontal-black.png" alt="GR Logo" class="logo no-print" />
     <h1>${session.title}</h1>
     <div class="meta">
-      <p>Skapad: ${new Date(session.created_at).toLocaleDateString('sv-SE', { 
+      <p><strong>Skapad:</strong> ${new Date(session.created_at).toLocaleDateString('sv-SE', { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       })}</p>
-      <p>Analystyp: ${session.analysis_type}</p>
+      <p><strong>Analystyp:</strong> ${session.analysis_type}</p>
+      ${result.type === 'comparison' && result.documents ? `
+        <p><strong>Antal dokument:</strong> ${result.documents.length}</p>
+      ` : ''}
     </div>
   </header>
 
   <main>
-    ${result.type === 'comparison' ? `
-      <section>
-        <h2>Sammanfattning</h2>
-        <div class="summary">
-          <p>${result.summary || 'Ingen sammanfattning tillgänglig'}</p>
-        </div>
-      </section>
-
-      <section>
-        <h2>Dokument som ingår i analysen</h2>
-        <div class="documents">
-          ${result.documents?.map((doc: any) => `
-            <div class="doc-card">
-              <h4>${doc.title}</h4>
-              <p style="font-size: 0.85em; color: #666;">${doc.file_name}</p>
-            </div>
-          `).join('') || ''}
-        </div>
-      </section>
-
-      ${result.key_themes?.length > 0 ? `
-        <section>
-          <h2>Huvudteman</h2>
-          <div class="keywords">
-            ${result.key_themes.map((theme: string) => `
-              <span class="keyword">${theme}</span>
-            `).join('')}
-          </div>
-        </section>
-      ` : ''}
-
-      ${result.similarities?.length > 0 ? `
-        <section>
-          <h2>Likheter</h2>
-          <ul>
-            ${result.similarities.map((s: string) => `<li>${s}</li>`).join('')}
-          </ul>
-        </section>
-      ` : ''}
-
-      ${result.differences?.length > 0 ? `
-        <section>
-          <h2>Skillnader</h2>
-          <ul>
-            ${result.differences.map((d: string) => `<li>${d}</li>`).join('')}
-          </ul>
-        </section>
-      ` : ''}
-
-      ${result.recommendations?.length > 0 ? `
-        <section>
-          <h2>Rekommendationer</h2>
-          <ul>
-            ${result.recommendations.map((r: string) => `<li>${r}</li>`).join('')}
-          </ul>
-        </section>
-      ` : ''}
-    ` : `
-      <section>
-        <h2>Dokumentinformation</h2>
-        <div class="doc-card">
-          <h4>${result.document?.title}</h4>
-          <p style="font-size: 0.85em; color: #666;">${result.document?.file_name}</p>
-        </div>
-      </section>
-
-      <section>
-        <h2>Sammanfattning</h2>
-        <div class="summary">
-          <p>${result.summary || 'Ingen sammanfattning tillgänglig'}</p>
-        </div>
-      </section>
-
-      ${result.keywords?.length > 0 ? `
-        <section>
-          <h2>Nyckelord</h2>
-          <div class="keywords">
-            ${result.keywords.map((kw: string) => `
-              <span class="keyword">${kw}</span>
-            `).join('')}
-          </div>
-        </section>
-      ` : ''}
-
-      ${result.key_findings?.length > 0 ? `
-        <section>
-          <h2>Viktiga fynd</h2>
-          <ul>
-            ${result.key_findings.map((f: string) => `<li>${f}</li>`).join('')}
-          </ul>
-        </section>
-      ` : ''}
-
-      ${result.recommendations?.length > 0 ? `
-        <section>
-          <h2>Rekommendationer</h2>
-          <ul>
-            ${result.recommendations.map((r: string) => `<li>${r}</li>`).join('')}
-          </ul>
-        </section>
-      ` : ''}
-    `}
+    ${contentHtml}
   </main>
 
   <footer>
-    <p>Genererad av GR:s Dokumentanalysverktyg</p>
+    <p><strong>Genererad av GR:s Dokumentanalysverktyg</strong></p>
     <p>© ${new Date().getFullYear()} Alla rättigheter förbehållna</p>
   </footer>
 </body>
