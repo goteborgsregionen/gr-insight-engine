@@ -95,10 +95,13 @@ export default function Analysis() {
     mutationFn: async () => {
       const combinedPrompt = combinePromptModifiers(selectedTemplates, customPrompts);
       
+      // Use 'strategic' analysis type when 2+ documents for full Sprint 1 features
+      const analysisType = selectedDocs.length >= 2 ? 'strategic' : selectedTemplates.join(',') || 'standard';
+      
       const { data, error } = await supabase.functions.invoke('start-analysis-session', {
         body: {
           documentIds: selectedDocs,
-          analysisType: selectedTemplates.join(','),
+          analysisType: analysisType,
           customPrompt: combinedPrompt,
           title: `Analys ${new Date().toLocaleDateString('sv-SE')}`,
           analysisTemplates: ANALYSIS_TEMPLATES,

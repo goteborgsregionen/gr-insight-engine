@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
 import ReactMarkdown from "react-markdown";
+import { Sprint1TestGuide } from "@/components/analysis/Sprint1TestGuide";
 
 export default function AnalysisWorkspace() {
   const { sessionId } = useParams();
@@ -72,6 +73,46 @@ export default function AnalysisWorkspace() {
     enabled: !!session?.document_ids && session?.status === 'processing',
     refetchInterval: session?.status === 'processing' ? 3000 : false,
   });
+
+  // Fetch Sprint 1 test data: claims and evidence
+  const { data: claimsData } = useQuery({
+    queryKey: ['claims-posts', sessionId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('claims_posts')
+        .select('*')
+        .eq('analysis_session_id', sessionId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!sessionId,
+  });
+
+  const { data: evidenceData } = useQuery({
+    queryKey: ['evidence-posts', session?.document_ids],
+    queryFn: async () => {
+      if (!session?.document_ids) return [];
+      const { data, error } = await supabase
+        .from('evidence_posts')
+        .select('*')
+        .in('document_id', session.document_ids);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!session?.document_ids,
+  });
+
+  // Calculate Sprint 1 test results
+  const sprint1TestResults = session && session.status === 'completed' ? {
+    hasClaims: (claimsData?.length || 0) > 0,
+    hasEvidence: (evidenceData?.length || 0) > 0,
+    hasReasoningSteps: !!(session.analysis_result as any)?.reasoning_steps?.length,
+    hasEvidenceStatements: !!(session.analysis_result as any)?.evidence_based_statements?.length,
+    claimsCount: claimsData?.length || 0,
+    evidenceCount: evidenceData?.length || 0,
+    reasoningStepsCount: (session.analysis_result as any)?.reasoning_steps?.length || 0,
+    evidenceStatementsCount: (session.analysis_result as any)?.evidence_based_statements?.length || 0,
+  } : null;
 
   useEffect(() => {
     if (session) {
@@ -479,6 +520,11 @@ export default function AnalysisWorkspace() {
             </Alert>
           )}
 
+          {/* Sprint 1 Test Guide - Show for strategic analyses with 2+ documents */}
+          {session.analysis_type === 'strategic' && session.document_ids.length >= 2 && (
+            <Sprint1TestGuide testResults={sprint1TestResults} />
+          )}
+
           {/* Header */}
           <Card>
             <CardHeader>
@@ -522,6 +568,11 @@ export default function AnalysisWorkspace() {
                       <Badge variant={session.status === 'completed' ? 'default' : 'secondary'}>
                         {session.status === 'completed' ? 'Slutförd' : 'Utkast'}
                       </Badge>
+                      {session.analysis_type === 'strategic' && (
+                        <Badge variant="default" className="bg-purple-600">
+                          Strategic
+                        </Badge>
+                      )}
                     </div>
                   </CardDescription>
                 </div>
