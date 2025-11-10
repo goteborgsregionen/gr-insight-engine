@@ -83,7 +83,19 @@ serve(async (req) => {
       throw new Error('Failed to fetch documents');
     }
 
-    console.log(`Found ${individualResults.length} individual analyses for ${documents.length} documents`);
+    // Fetch claims for this session
+    const { data: claimsPosts } = await supabase
+      .from('claims_posts')
+      .select('*')
+      .eq('analysis_session_id', sessionId);
+
+    // Fetch evidence for all documents in this session
+    const { data: evidencePosts } = await supabase
+      .from('evidence_posts')
+      .select('*')
+      .in('document_id', session.document_ids);
+
+    console.log(`Found ${individualResults.length} individual analyses for ${documents.length} documents, ${claimsPosts?.length || 0} claims, ${evidencePosts?.length || 0} evidence posts`);
 
     // Prepare the comprehensive prompt for strategic aggregation
     let strategicPromptTemplate = `
@@ -119,8 +131,50 @@ ANALYSTYP: Strategisk Jämförelseanalys
     }
 
     strategicPromptTemplate += `
+
+📚 EXEMPEL PÅ HÖGKVALITATIV GAP-ANALYS:
+
+| Område | Lokal kommunnivå | Regional/Nationell/EU-nivå | Identifierat gap |
+|--------|------------------|----------------------------|------------------|
+| Klimat & energi | **Göteborg**: -45% utsläpp sedan 1990, mål -63% till 2030 (📄 RUS 2024, s.23) | **EU**: -55% till 2030, klimatneutralitet 2050 (📄 Green Deal) | **Genomförandegap**: Saknar konkret åtgärdsplan för sista 18% utsläppsminskning. **Finansieringsgap**: Estimerat 2-3 mdr SEK behövs för elektrifiering av kollektivtrafik (📄 Klimatplan 2023, s.45). **Kompetensgap**: Brist på klimatrådgivare i 6 av 13 kommuner. |
+| Digitalisering | **Mölndal**: 67% e-tjänster tillgängliga, användarsnitt 6.2/10 (📄 IT-strategi 2023-2026, Bilaga 2) | **Nationellt mål (SKR)**: 85% e-tjänster, användarsnitt 8/10 till 2025 | **Tekniskt gap**: Äldre plattformar (pre-2015) i 45% av systemen kräver modernisering. **Kompetensgap**: Brist på 12 UX-designers och 8 tjänsteutvecklare enligt behovsanalys. **Procesgap**: Saknas standardiserade processer för användardriven utveckling. |
+
+OBS: Varje gap MÅSTE vara:
+1. Specifik och mätbar (inte "behöver förbättras" utan "behöver 2-3 mdr SEK")  
+2. Baserad på faktisk data från dokumenten (med 📄 referenser)
+3. Kategoriserad (genomförande/finansiering/kompetens/process/tekniskt)
+
+📚 EXEMPEL PÅ EVIDENSBASERADE REKOMMENDATIONER:
+
+**1. Accelerera elektrifieringen av kollektivtrafiken genom regional samordning** – Prioriterad satsning för att nå klimatmålen
+
+Göteborg och omkringliggande kommuner har åtagit sig att minska utsläppen med 63% till 2030 (📄 RUS 2024, s.23), men kollektivtrafikens elektrifiering ligger efter schema. Endast 23% av bussflottan är elektrisk idag (📄 Västtrafik Årsrapport 2023, s.67), jämfört med det nationella målet om 50% till 2025.
+
+**Konkreta åtgärder:**
+- Etablera ett regionalt inköpssamarbete för att sänka kostnader per elbuss från 6,5 MSEK till ~5 MSEK (📄 Kostnadsanalys, s.12)
+- Bygga ut laddinfrastruktur vid 8 strategiska depåer (Göteborg 3, Mölndal 2, Partille 1, Kungälv 1, Lerum 1)
+- Investera 2,1 mdr SEK över 5 år (beräkning: 350 elbussar × 5 MSEK + 200 MSEK infrastruktur)
+
+**Förväntade effekter:**
+- Minskning av CO2-utsläpp med 45 000 ton/år (📄 Klimatanalys, s.34)
+- Lägre driftkostnader: -30% per km jämfört med dieselbussar efter 7 år (📄 Total Cost of Ownership-analys, Bilaga 5)
+- Förbättrad luftkvalitet i stadskärnor (NOx -60%, partiklar -75%)
+
+**Aktörer:**
+- GR som koordinator och finansieringspart
+- Västtrafik som operatör
+- Kommunerna som ägare av depåer
+- Trafikverket för laddinfrastruktur längs större vägar
+
+OBS: Varje rekommendation MÅSTE innehålla:
+1. Konkreta åtgärdsförslag med siffror (inte "förbättra" utan "investera X MSEK i Y")
+2. Dokumentreferenser (📄 emoji) för varje påstående
+3. Kvantifierade effekter där möjligt
+4. Identifierade aktörer och ansvarsfördelning
+5. Minst 150 ord per rekommendation
+
 MÅL: 
-Identifiera långsiktiga mål och strategiska prioriteringar genom att analysera ALLA dokument tillsammans. 
+Identifiera långsiktiga mål och strategiska prioriteringar genom att analysera ALLA dokument tillsammans.
 Skapa en samlad strategisk översikt som visar mönster, synergier och gap mellan dokumenten.
 
 INSTRUKTIONER:
@@ -237,6 +291,65 @@ KRITISKA KVALITETSKRAV:
       analysisContext += "---\n\n";
     }
 
+    // Add structured claims with evidence references
+    if (claimsPosts && claimsPosts.length > 0) {
+      analysisContext += `\n\n## STRUKTURERADE PÅSTÅENDEN (CLAIMS)\n`;
+      analysisContext += `Dessa påståenden är baserade på verifierad evidens:\n\n`;
+      for (const claim of claimsPosts) {
+        analysisContext += `**${claim.claim_id}** (${claim.claim_type}, styrka: ${claim.strength}):\n`;
+        analysisContext += `${claim.text}\n`;
+        analysisContext += `📊 Evidens: ${claim.evidence_ids?.join(', ') || 'Ingen evidens angiven'}\n`;
+        if (claim.assumptions && claim.assumptions.length > 0) {
+          analysisContext += `⚠️ Antaganden: ${claim.assumptions.join('; ')}\n`;
+        }
+        if (claim.actors && claim.actors.length > 0) {
+          analysisContext += `👥 Aktörer: ${claim.actors.join(', ')}\n`;
+        }
+        if (claim.kpi_tags && claim.kpi_tags.length > 0) {
+          analysisContext += `📈 KPI-taggar: ${claim.kpi_tags.join(', ')}\n`;
+        }
+        analysisContext += `\n`;
+      }
+    }
+
+    // Add raw evidence (prioritize tables and numbers)
+    if (evidencePosts && evidencePosts.length > 0) {
+      analysisContext += `\n\n## RAW EVIDENS\n`;
+      analysisContext += `Använd denna evidens för att stödja dina påståenden:\n\n`;
+      
+      // Prioritize tables and numbers
+      const tables = evidencePosts.filter(e => e.type === 'table').slice(0, 20);
+      const numbers = evidencePosts.filter(e => e.type === 'number').slice(0, 30);
+      
+      for (const evidence of tables) {
+        analysisContext += `📊 **${evidence.evidence_id}** (${evidence.source_loc}):\n`;
+        analysisContext += `Tabell: ${evidence.table_ref || 'Utan namn'}\n`;
+        if (evidence.headers && evidence.headers.length > 0) {
+          analysisContext += `Kolumner: ${(evidence.headers as string[]).join(' | ')}\n`;
+        }
+        if (evidence.rows && evidence.rows.length > 0) {
+          const rows = evidence.rows as any[];
+          const rowsToShow = rows.slice(0, 5);
+          rowsToShow.forEach((row: any) => {
+            analysisContext += `  ${Array.isArray(row) ? row.join(' | ') : JSON.stringify(row)}\n`;
+          });
+          if (rows.length > 5) {
+            analysisContext += `  ... (${rows.length - 5} fler rader)\n`;
+          }
+        }
+        analysisContext += `\n`;
+      }
+      
+      for (const evidence of numbers) {
+        analysisContext += `🔢 **${evidence.evidence_id}** (${evidence.source_loc}):\n`;
+        analysisContext += `${evidence.quote || evidence.notes}\n`;
+        if (evidence.unit_notes) {
+          analysisContext += `Enhet: ${evidence.unit_notes}\n`;
+        }
+        analysisContext += `\n`;
+      }
+    }
+
     // Add custom prompt if provided
     if (session.custom_prompt) {
       analysisContext += `\n\nANVÄNDAR-SPECIFIKA INSTRUKTIONER:\n${session.custom_prompt}\n\n`;
@@ -277,6 +390,37 @@ KRITISKA KVALITETSKRAV:
               parameters: {
                 type: 'object',
                 properties: {
+                  reasoning_steps: {
+                    type: 'array',
+                    description: 'INNAN du skapar analysen, dokumentera dina resonemangssteg här. För varje viktigt påstående du planerar att göra, förklara: (1) Vilken evidens du baserar det på, (2) Vilket mönster eller insikt du ser, (3) Vilken slutsats du drar',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        step_number: { 
+                          type: 'integer',
+                          description: 'Stegets nummer i ordning'
+                        },
+                        observation: { 
+                          type: 'string',
+                          description: 'Vad ser du i data/evidens/claims? Beskriv konkreta observationer.'
+                        },
+                        evidence_refs: {
+                          type: 'array',
+                          items: { type: 'string' },
+                          description: 'Vilka evidens-ID (E-XXX) eller claim-ID (C-XXX) stödjer denna observation? Lista alla relevanta ID:n.'
+                        },
+                        insight: {
+                          type: 'string', 
+                          description: 'Vilken insikt eller mönster följer av observationen? Vad betyder detta i ett större sammanhang?'
+                        },
+                        conclusion: {
+                          type: 'string',
+                          description: 'Vilken slutsats drar du för rapporten? Hur kommer detta påverka din analys?'
+                        }
+                      },
+                      required: ['step_number', 'observation', 'evidence_refs', 'insight', 'conclusion']
+                    }
+                  },
                   strategic_overview: {
                     type: 'string',
                     description: 'OMFATTANDE strategisk översikt (minst 200 ord) som beskriver den samlade riktningen i alla dokument, hur de kompletterar varandra, övergripande målbilder och kopplingar till nationella/EU-strategier'
@@ -334,12 +478,17 @@ KRITISKA KVALITETSKRAV:
                     },
                     description: '3-5 prioriterade, detaljerade och handlingsbara fokusområden för Göteborgsregionen'
                   },
+                  evidence_based_statements: {
+                    type: 'array',
+                    description: 'Lista av viktiga påståenden med direkta evidenshänvisningar. Använd format: "påstående [E-001, E-023]" eller "påstående [C-005]" för att referera till evidens eller claims.',
+                    items: { type: 'string' }
+                  },
                   full_markdown_output: {
                     type: 'string',
                     description: 'KOMPLETT, PROFESSIONELL analys i markdown-format enligt exakt den mall som specificerats. MÅSTE innehålla ALLA sektioner: ## Strategisk Översikt, ## Gemensamma Fokusområden, ## Strategisk Målkarta, ## Gap-Analys (med faktisk tabell), ## Rekommenderade Fokusområden. Totalt minst 1500 ord. Använd 📄 emoji för dokumentreferenser genomgående.'
                   }
                 },
-                required: ['strategic_overview', 'common_focus_areas', 'strategic_goals_map', 'gap_analysis', 'recommended_focus_areas', 'full_markdown_output'],
+                required: ['reasoning_steps', 'strategic_overview', 'common_focus_areas', 'strategic_goals_map', 'gap_analysis', 'recommended_focus_areas', 'evidence_based_statements', 'full_markdown_output'],
                 additionalProperties: false
               }
             }
@@ -380,11 +529,13 @@ KRITISKA KVALITETSKRAV:
         title: d.title,
         file_name: d.file_name
       })),
+      reasoning_steps: aggregatedAnalysis.reasoning_steps,
       strategic_overview: aggregatedAnalysis.strategic_overview,
       common_focus_areas: aggregatedAnalysis.common_focus_areas,
       strategic_goals_map: aggregatedAnalysis.strategic_goals_map,
       gap_analysis: aggregatedAnalysis.gap_analysis,
       recommended_focus_areas: aggregatedAnalysis.recommended_focus_areas,
+      evidence_based_statements: aggregatedAnalysis.evidence_based_statements,
       full_markdown_output: aggregatedAnalysis.full_markdown_output,
       individual_results: individualResults.map(r => ({
         document_id: r.document_id,

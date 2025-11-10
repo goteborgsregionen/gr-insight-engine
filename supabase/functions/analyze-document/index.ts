@@ -435,8 +435,8 @@ ${templateModifier}
 
 ${templateModifier ? 'VIKTIGT: Anpassa din analys efter det fokus som specificeras ovan.' : ''}
 
-Innehåll (första 30000 tecken):
-${fileContent.substring(0, 30000)}
+Innehåll (första 100000 tecken):
+${fileContent.substring(0, 100000)}
 
 Returnera strukturerad JSON:
 
