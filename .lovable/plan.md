@@ -1,69 +1,86 @@
 
-# Plan: Koppla ihop hela ERCW-pipelinen
+# Fas 2: Evidensbasering i frontend
 
-## Problem
-`process-analysis-queue` kör bara `analyze-document` per dokument. De tre andra ERCW-stegen (`extract-evidence`, `reason-claims`, `critique-pre-write`) anropas aldrig, vilket innebär att claims och evidence aldrig genereras -- och Sprint 1-förbättringarna i `aggregate-strategic-analysis` inte har data att arbeta med.
+## Oversikt
+Gor rapporternas pastaenden verifierbara genom att lagga till klickbara evidence badges, en evidence popup-viewer, konfidenspoang och en kallhanvisningssektion direkt i den interaktiva rapportvyn.
 
-## Losning
-Omskriv `process-analysis-queue/index.ts` sa att varje dokument kor hela ERCW-pipelinen sekventiellt:
+## Nya komponenter
+
+### 1. `src/components/reports/EvidenceBadge.tsx`
+En liten klickbar badge-komponent som renderas inline i rapporttext. Matchar monstret `[E-001]` i markdown-outputen.
+- Visar evidence-ID som en fargkodad badge (bla for tabell, gron for citat, orange for siffra)
+- onClick oppnar EvidencePopover med detaljerad information
+- Hover-effekt visar kort forhandsvisning (typ + sidnummer)
+
+### 2. `src/components/reports/EvidencePopover.tsx`
+En popover/dialog som visar full evidens nar anvandaren klickar pa en badge.
+- Visar evidenstyp med ikon (tabell, citat, siffra)
+- For tabeller: renderar hela tabellen med headers och rader
+- For citat: visar citatet i blockquote-format
+- For siffror: visar vardet med enhet
+- Visar sidnummer, sektion och eventuella anteckningar
+- "Stang"-knapp
+
+### 3. `src/components/reports/ConfidenceBadge.tsx`
+Visuell indikator for konfidenspoang pa pastaenden i rapporten.
+- Gron cirkel for hog konfidens (3+ kallor)
+- Gul cirkel for medel (1-2 kallor)
+- Rod/gra for inga kallor
+- Hover visar antal kallor
+
+### 4. `src/components/reports/SourceReferences.tsx`
+En sektion langst ner i rapporten som listar alla anvanda kallor.
+- Grupperar evidens per dokument
+- Visar dokument-titel, antal evidenspunkter, och klickbar lista
+- Varje evidenspost ar klickbar och oppnar samma EvidencePopover
+
+## Andringar i befintliga filer
+
+### 5. `src/pages/InteractiveReportViewer.tsx`
+- Hamta `evidence_posts` och `claims_posts` fran databasen (via session.document_ids)
+- Skapa en evidence-map (evidence_id -> evidence object) for snabb uppslagning
+- Lagga till en custom ReactMarkdown-komponent for `code` som fangar `[E-001]` monster och renderar EvidenceBadge istallet
+- Alternativt: preprocessa markdown-texten och ersatt `[E-001]` med en specialmarkering som ReactMarkdown kan rendera
+- Lagga till SourceReferences-sektionen under rapportinnehallet
+- Lagga till en "Evidenssammanfattning" i sidopanelen (under TOC) som visar antal evidence och claims
+
+### 6. `src/components/reports/ExecutiveSummaryCard.tsx`
+- Lagga till evidence_count (antal unika evidenspunkter) som ny metric
+- Visa konfidensindikator baserat pa om claims och evidence finns
+
+## Teknisk design
+
+### Evidence-matching i markdown
+Rapportens markdown innehaller redan `[E-001]` referenser (fran aggregate-strategic-analysis Sprint 1). Strategin:
+
+1. Preprocessa markdown-strangen: ersatt `[E-XXX]` med en HTML-markering `<evidence-ref id="E-XXX" />`
+2. Anvand ReactMarkdown med `rehypeRaw` for att rendera raw HTML, ELLER
+3. Enklare: anvand en custom text-renderer som splittar text pa `[E-XXX]` och injicerar React-komponenter
+
+Vald approach: **Option 3** - custom text renderer i ReactMarkdown's `text`-komponent som splittar pa regex `/\[E-\d+\]/g` och renderar EvidenceBadge-komponenter inline.
+
+### Dataflode
 
 ```text
-Per dokument:
-  1. analyze-document     (grundanalys, sparar i analysis_results)
-  2. extract-evidence     (extrahera tabeller, citat, nyckeltal)
-
-Nar alla dokument ar klara:
-  3. reason-claims        (skapa claims fran all evidence, per session)
-  4. critique-pre-write   (validera data innan rapportskrivning)
-  5. aggregate-strategic-analysis  (slutlig aggregering, om strategic)
-     ELLER enkel aggregering (om standard)
+InteractiveReportViewer
+  |-- Hamtar session (redan implementerat)
+  |-- Hamtar evidence_posts WHERE document_id IN session.document_ids
+  |-- Hamtar claims_posts WHERE analysis_session_id = session.id
+  |-- Bygger evidenceMap: { "E-001": evidenceObject, ... }
+  |-- Skickar evidenceMap till markdown-renderaren
+  |-- EvidenceBadge onClick -> oppnar EvidencePopover med data fran evidenceMap
 ```
 
-## Detaljerade andringar
+### Databas
+Inga nya tabeller eller migrationer behovs. Anvander befintliga `evidence_posts` och `claims_posts`.
 
-### 1. `supabase/functions/process-analysis-queue/index.ts` (huvudandring)
+## Sammanfattning av filer
 
-Ersatt nuvarande logik som bara kor `analyze-document` med en fullstandig ERCW-pipeline:
-
-**Per dokument (steg 1-2):**
-- Kor `analyze-document` som idag
-- Kor `extract-evidence` med `{ documentId }` -- hoppar over om evidens redan finns
-- Uppdatera kostatusen for varje steg (`analyzing` -> `extracting` -> `extracted`)
-
-**Per session (steg 3-5), nar alla dokument ar klara:**
-- Kor `reason-claims` med `{ sessionId, documentIds }` -- skapar claims fran all evidence
-- Kor `critique-pre-write` med `{ sessionId, documentIds }` -- validerar data
-- Spara critique-resultat pa sessionen (`critique_passed`, `critique_results`)
-- Kor `aggregate-strategic-analysis` (for strategic) eller enkel aggregering (for standard)
-
-**Timeout och felhantering:**
-- Oka timeout fran 120s till 300s (extract-evidence behovs mer tid for stora PDF:er)
-- Om `extract-evidence` misslyckas: logga varning men fortsatt (graceful degradation)
-- Om `reason-claims` misslyckas: fortsatt till aggregering men utan claims
-- Om `critique-pre-write` misslyckas: logga varning, fortsatt anda
-
-### 2. Sessionstatusuppdateringar
-
-Lagg till statusuppdateringar under pipelinen sa UI:t kan visa progress:
-
-- `processing` (start)
-- `extracting_evidence` (nar extract-evidence borsjar)
-- `reasoning_claims` (nar reason-claims borsjar)
-- `critiquing` (nar critique-pre-write borsjar)
-- `aggregating` (nar aggregation borsjar)
-- `completed` / `failed` (slutstatus)
-
-### 3. Undvik dubbelkorning
-
-Lagg till check i extract-evidence-anropet: om dokumentet redan har `evidence_extracted = true`, hoppa over. Detta gor det sakert att kora om en session.
-
-## Tekniska detaljer
-
-- Inga databasmigrationer behovs -- alla tabeller och kolumner finns redan
-- Inga nya edge functions -- bara andring av `process-analysis-queue/index.ts`
-- `reason-claims` och `critique-pre-write` anvander redan `SUPABASE_SERVICE_ROLE_KEY` sa RLS ar inget problem for service-to-service-anrop
-- `claims_posts` saknar INSERT-policy for vanliga anvandare, men edge functions kor med service role key, sa det fungerar
-
-## Risker
-- **Langre exekveringstid**: Hela pipelinen kan ta 3-5 minuter. Edge functions har en maxgrans pa ~400s. Vi kor stegen sekventiellt och begrAnsar timeout per steg.
-- **Graceful degradation**: Om nagot steg misslyckas gar vi vidare med det vi har, istallet for att falla helt.
+| Fil | Aktion |
+|-----|--------|
+| `src/components/reports/EvidenceBadge.tsx` | Ny |
+| `src/components/reports/EvidencePopover.tsx` | Ny |
+| `src/components/reports/ConfidenceBadge.tsx` | Ny |
+| `src/components/reports/SourceReferences.tsx` | Ny |
+| `src/pages/InteractiveReportViewer.tsx` | Redigera |
+| `src/components/reports/ExecutiveSummaryCard.tsx` | Redigera |
