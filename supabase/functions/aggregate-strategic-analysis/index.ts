@@ -89,13 +89,16 @@ serve(async (req) => {
       .select('*')
       .eq('analysis_session_id', sessionId);
 
+    // Fetch contradiction claims separately for dedicated prompt section
+    const contradictionClaims = (claimsPosts || []).filter(c => c.claim_type === 'contradiction');
+
     // Fetch evidence for all documents in this session
     const { data: evidencePosts } = await supabase
       .from('evidence_posts')
       .select('*')
       .in('document_id', session.document_ids);
 
-    console.log(`Found ${individualResults.length} individual analyses for ${documents.length} documents, ${claimsPosts?.length || 0} claims, ${evidencePosts?.length || 0} evidence posts`);
+    console.log(`Found ${individualResults.length} individual analyses for ${documents.length} documents, ${claimsPosts?.length || 0} claims (${contradictionClaims.length} contradictions), ${evidencePosts?.length || 0} evidence posts`);
 
     // Prepare the comprehensive prompt for strategic aggregation
     let strategicPromptTemplate = `
@@ -350,6 +353,21 @@ KRITISKA KVALITETSKRAV:
       }
     }
 
+    // Add contradictions section if any exist
+    if (contradictionClaims.length > 0) {
+      analysisContext += `\n\n## IDENTIFIERADE MOTSÄGELSER\n`;
+      analysisContext += `Följande motsägelser har identifierats mellan dokument. Adressera dessa i gap-analysen:\n\n`;
+      for (const claim of contradictionClaims) {
+        analysisContext += `⚠️ **${claim.claim_id}** (styrka: ${claim.strength}):\n`;
+        analysisContext += `${claim.text}\n`;
+        analysisContext += `📊 Evidens: ${claim.evidence_ids?.join(', ') || 'Ingen evidens angiven'}\n`;
+        if (claim.notes?.startsWith('contradicts:')) {
+          analysisContext += `🔗 Motsäger: ${claim.notes.replace('contradicts:', '')}\n`;
+        }
+        analysisContext += `\n`;
+      }
+    }
+
     // Add custom prompt if provided
     if (session.custom_prompt) {
       analysisContext += `\n\nANVÄNDAR-SPECIFIKA INSTRUKTIONER:\n${session.custom_prompt}\n\n`;
@@ -370,7 +388,8 @@ KRITISKA KVALITETSKRAV:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
+        temperature: 0.5,
         messages: [
           {
             role: 'system',
@@ -510,13 +529,100 @@ KRITISKA KVALITETSKRAV:
     const aiData = await aiResponse.json();
     console.log('AI response received');
 
-    // Extract structured output from tool call
+    // Extract structured output from tool call (Pass 1)
     let aggregatedAnalysis;
     if (aiData.choices?.[0]?.message?.tool_calls?.[0]) {
       const toolCall = aiData.choices[0].message.tool_calls[0];
       aggregatedAnalysis = JSON.parse(toolCall.function.arguments);
     } else {
       throw new Error('No structured output from AI');
+    }
+
+    console.log('✅ Pass 1 complete. Starting Pass 2 self-critique...');
+
+    // === PASS 2: Self-critique ===
+    let critiqueResult = { passed: true, score: 5, issues: [] as string[], used_improved: false };
+
+    try {
+      const critiqueResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          temperature: 0.1,
+          messages: [
+            {
+              role: 'system',
+              content: 'Du är en kvalitetsgranskare för strategiska analyser. Var strikt och objektiv.'
+            },
+            {
+              role: 'user',
+              content: `Granska följande strategiska analys mot dessa kvalitetskriterier:
+
+1. Har gap-analysen minst 5 rader med faktiska siffror? (JA/NEJ)
+2. Har varje rekommendation minst 150 ord? (JA/NEJ)
+3. Finns minst 10 dokumentreferenser med 📄 emoji? (JA/NEJ)
+4. Är total längd minst 1500 ord? (JA/NEJ)
+5. Refererar analysen till evidence-ID:n [E-XXX]? (JA/NEJ)
+
+Om något kriterium är NEJ: förbättra analysen och returnera en uppdaterad version.
+Om alla är JA: returnera analysen oförändrad med passed=true.
+
+ANALYS ATT GRANSKA:
+${aggregatedAnalysis.full_markdown_output}`
+            }
+          ],
+          tools: [{
+            type: 'function',
+            function: {
+              name: 'critique_analysis',
+              description: 'Return critique results with optional improved markdown',
+              parameters: {
+                type: 'object',
+                required: ['passed', 'score', 'issues'],
+                properties: {
+                  passed: { type: 'boolean', description: 'True if all 5 criteria are met' },
+                  score: { type: 'integer', description: 'Number of criteria met (0-5)', minimum: 0, maximum: 5 },
+                  issues: { type: 'array', items: { type: 'string' }, description: 'List of issues found' },
+                  improved_markdown: { type: 'string', description: 'Improved full markdown if passed=false. Must be complete replacement.' }
+                }
+              }
+            }
+          }],
+          tool_choice: { type: 'function', function: { name: 'critique_analysis' } }
+        }),
+      });
+
+      if (critiqueResponse.ok) {
+        const critiqueData = await critiqueResponse.json();
+        const critiqueToolCall = critiqueData.choices?.[0]?.message?.tool_calls?.[0];
+        
+        if (critiqueToolCall) {
+          const critique = JSON.parse(critiqueToolCall.function.arguments);
+          critiqueResult = {
+            passed: critique.passed,
+            score: critique.score,
+            issues: critique.issues || [],
+            used_improved: false
+          };
+
+          console.log(`📝 Pass 2 critique: score=${critique.score}/5, passed=${critique.passed}, issues=${critique.issues?.length || 0}`);
+
+          // Use improved version if critique failed and improvement exists
+          if (!critique.passed && critique.improved_markdown) {
+            aggregatedAnalysis.full_markdown_output = critique.improved_markdown;
+            critiqueResult.used_improved = true;
+            console.log('🔄 Using improved markdown from Pass 2');
+          }
+        }
+      } else {
+        console.warn('⚠️ Pass 2 critique failed, using Pass 1 output (graceful degradation)');
+      }
+    } catch (critiqueError) {
+      console.warn('⚠️ Pass 2 critique error, using Pass 1 output:', critiqueError);
     }
 
     // Create the final result structure
@@ -542,15 +648,25 @@ KRITISKA KVALITETSKRAV:
         summary: r.summary,
         keywords: r.keywords
       })),
+      critique_pass2: critiqueResult,
+      contradictions_count: contradictionClaims.length,
       completed_at: new Date().toISOString()
     };
 
-    // Update the session with the aggregated result
+    // Update the session with the aggregated result + critique
     const { error: updateError } = await supabase
       .from('analysis_sessions')
       .update({
         analysis_result: finalResult,
         status: 'completed',
+        critique_passed: critiqueResult.passed,
+        critique_results: {
+          pass2_score: critiqueResult.score,
+          pass2_passed: critiqueResult.passed,
+          pass2_issues: critiqueResult.issues,
+          pass2_used_improved: critiqueResult.used_improved,
+          contradictions_count: contradictionClaims.length
+        },
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

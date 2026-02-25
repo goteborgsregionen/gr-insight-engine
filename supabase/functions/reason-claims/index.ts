@@ -19,13 +19,14 @@ const REASON_PROMPT = `TASK: REASON — Skapa strukturerade påståenden (claims
 CLAIM FORMAT:
 {
   "claim_id": "C-001",
-  "type": "trend|gap|recommendation|insight",
+  "type": "trend|gap|recommendation|insight|contradiction",
   "text": "IT-budgeten ökade med 12.5% mellan 2023-2024",
   "evidence_ids": ["E-001", "E-023"],
   "strength": "high|medium|low",
   "assumptions": ["Förutsätter att budgeten är inflationsjusterad"],
   "actors": ["IT-avdelningen"],
-  "kpi_tags": ["budget", "IT"]
+  "kpi_tags": ["budget", "IT"],
+  "contradicts_claim_id": null
 }
 
 STRENGTH RULES:
@@ -38,10 +39,19 @@ CROSS-DOCUMENT FOCUS:
 - Upptäck MOTSÄGELSER mellan källor
 - Markera DATAGAP där information saknas
 
+CONTRADICTION DETECTION:
+- Jämför siffror, procent och årtal mellan olika dokument
+- Om samma KPI har olika värden i olika dokument, skapa en "contradiction" claim
+- Ange contradicts_claim_id för att referera till det motstridiga påståendet
+- Exempel: Om Dokument A säger "budget 50 MSEK" och Dokument B säger "budget 42 MSEK", skapa två claims som pekar på varandra
+- Contradictions ska alltid ha strength "high" om båda källorna är tabeller/siffror, annars "medium"
+- I claim-texten: beskriv BÅDA värdena och vilka dokument de kommer från
+
 IMPORTANT:
 - Använd save_claims tool för att spara alla claims
 - Inkludera evidence_ids[] för varje claim
-- Flagga konflikter som "gap" med low strength`;
+- Flagga konflikter som "contradiction" med contradicts_claim_id
+- Flagga datagap som "gap" med low strength`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -75,7 +85,7 @@ serve(async (req) => {
 
     console.log(`📊 Found ${allEvidence?.length || 0} evidence posts to reason from`);
 
-    // Build evidence summary for AI
+    // Build evidence summary for AI — include document_id for cross-doc comparison
     const evidenceSummary = (allEvidence || []).map(e => ({
       id: e.evidence_id,
       type: e.type,
@@ -88,7 +98,7 @@ serve(async (req) => {
 
     const fullPrompt = `${REASON_PROMPT}\n\nEVIDENS (från ${documentIds.length} dokument):\n${JSON.stringify(evidenceSummary, null, 2)}`;
 
-    // Call Lovable AI with tool calling
+    // Call Lovable AI with tool calling — upgraded to gemini-2.5-pro with temperature 0.3
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -96,7 +106,8 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
+        temperature: 0.3,
         messages: [
           { role: 'system', content: SYSTEM_BASE },
           { role: 'user', content: fullPrompt }
@@ -105,7 +116,7 @@ serve(async (req) => {
           type: 'function',
           function: {
             name: 'save_claims',
-            description: 'Save generated claims with evidence links',
+            description: 'Save generated claims with evidence links, including contradiction detection',
             parameters: {
               type: 'object',
               required: ['claims'],
@@ -117,13 +128,14 @@ serve(async (req) => {
                     required: ['claim_id', 'type', 'text', 'evidence_ids', 'strength'],
                     properties: {
                       claim_id: { type: 'string' },
-                      type: { type: 'string', enum: ['trend', 'gap', 'recommendation', 'insight'] },
+                      type: { type: 'string', enum: ['trend', 'gap', 'recommendation', 'insight', 'contradiction'] },
                       text: { type: 'string' },
                       evidence_ids: { type: 'array', items: { type: 'string' } },
                       strength: { type: 'string', enum: ['high', 'medium', 'low'] },
                       assumptions: { type: 'array', items: { type: 'string' } },
                       actors: { type: 'array', items: { type: 'string' } },
-                      kpi_tags: { type: 'array', items: { type: 'string' } }
+                      kpi_tags: { type: 'array', items: { type: 'string' } },
+                      contradicts_claim_id: { type: 'string', description: 'ID of the claim this contradicts (e.g. C-003)' }
                     }
                   }
                 }
@@ -149,6 +161,10 @@ serve(async (req) => {
     const claims = JSON.parse(toolCall.function.arguments).claims;
     console.log(`💡 Generated ${claims.length} claims`);
 
+    // Count contradictions
+    const contradictions = claims.filter((c: any) => c.type === 'contradiction');
+    console.log(`⚠️ Found ${contradictions.length} contradictions`);
+
     // Save claims to database
     const claimsToInsert = claims.map((c: any) => ({
       analysis_session_id: sessionId,
@@ -159,7 +175,8 @@ serve(async (req) => {
       strength: c.strength,
       assumptions: c.assumptions || [],
       actors: c.actors || [],
-      kpi_tags: c.kpi_tags || []
+      kpi_tags: c.kpi_tags || [],
+      notes: c.contradicts_claim_id ? `contradicts:${c.contradicts_claim_id}` : null
     }));
 
     const { error: insertError } = await supabase
@@ -168,22 +185,36 @@ serve(async (req) => {
 
     if (insertError) throw insertError;
 
-    // Update session
+    // Build contradictions summary and save to session critique_results
+    const contradictionsSummary = contradictions.map((c: any) => ({
+      claim_id: c.claim_id,
+      text: c.text,
+      contradicts: c.contradicts_claim_id,
+      evidence_ids: c.evidence_ids,
+      kpi_tags: c.kpi_tags || []
+    }));
+
+    // Update session with claims count and contradiction info
     const { error: updateError } = await supabase
       .from('analysis_sessions')
       .update({ 
         claims_count: claims.length,
-        status: 'claims_generated'
+        status: 'claims_generated',
+        critique_results: {
+          contradictions_count: contradictions.length,
+          contradictions: contradictionsSummary
+        }
       })
       .eq('id', sessionId);
 
     if (updateError) throw updateError;
 
-    console.log(`✅ REASON complete: ${claims.length} claims saved`);
+    console.log(`✅ REASON complete: ${claims.length} claims saved (${contradictions.length} contradictions)`);
 
     return new Response(JSON.stringify({ 
       success: true, 
       claimsCount: claims.length,
+      contradictionsCount: contradictions.length,
       claims 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

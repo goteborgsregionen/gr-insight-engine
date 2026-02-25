@@ -118,6 +118,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash', // Bäst för PDF/tabeller
+        temperature: 0.1,
         messages: [
           { role: 'system', content: SYSTEM_BASE },
           {
