@@ -17,9 +17,10 @@ export default function Dashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [docsResult, analyzedResult, lastDoc] = await Promise.all([
+      const [docsResult, analyzedResult, reportsResult, lastDoc] = await Promise.all([
         supabase.from("documents").select("id", { count: "exact", head: true }),
         supabase.from("analysis_results").select("id", { count: "exact", head: true }),
+        supabase.from("analysis_sessions").select("id", { count: "exact", head: true }).eq("status", "completed"),
         supabase
           .from("documents")
           .select("uploaded_at")
@@ -31,6 +32,7 @@ export default function Dashboard() {
       return {
         docsCount: docsResult.count || 0,
         analyzedCount: analyzedResult.count || 0,
+        reportsCount: reportsResult.count || 0,
         lastActivity: lastDoc?.data?.uploaded_at
           ? formatDate(lastDoc.data.uploaded_at)
           : "Ingen aktivitet",
@@ -113,7 +115,7 @@ export default function Dashboard() {
     },
     {
       title: "Genererade rapporter",
-      value: "0",
+      value: stats?.reportsCount?.toString() || "0",
       icon: TrendingUp,
       description: "Totalt antal rapporter",
       color: "text-secondary",
@@ -165,7 +167,7 @@ export default function Dashboard() {
                     Börja med att ladda upp dina första dokument för AI-driven analys
                   </p>
                   <Button size="lg" asChild>
-                    <Link to="/upload">
+                    <Link to="/documents/upload">
                       <Upload className="mr-2 h-5 w-5" />
                       Ladda upp dokument
                     </Link>
@@ -175,17 +177,17 @@ export default function Dashboard() {
             ) : (
               <Card>
                 <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-bold mb-1">
                         Du har {stats?.docsCount} dokument uppladdade
                       </h2>
-                      <p className="text-muted-foreground">
-                        {stats?.analyzedCount} analyserade • Senaste aktivitet: {stats?.lastActivity}
+                      <p className="text-muted-foreground text-sm">
+                        {stats?.analyzedCount} analyserade • {stats?.lastActivity}
                       </p>
                     </div>
-                    <Button asChild>
-                      <Link to="/upload">
+                    <Button asChild className="self-start sm:self-auto">
+                      <Link to="/documents/upload">
                         <Upload className="mr-2 h-4 w-4" />
                         Ladda upp fler
                       </Link>
@@ -197,7 +199,7 @@ export default function Dashboard() {
 
             {/* Quick Actions */}
             <div className="grid gap-4 md:grid-cols-3">
-              <Link to="/upload">
+              <Link to="/documents/upload">
                 <Card className="hover:border-primary cursor-pointer transition-colors h-full">
                   <CardHeader>
                     <FileText className="h-8 w-8 mb-2 text-primary" />
@@ -401,30 +403,7 @@ export default function Dashboard() {
             {/* Senaste aggregerade insikter */}
             {latestInsight && <AggregateInsights insight={latestInsight} />}
 
-            {/* Extra statistik */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Dokumenttyper</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Statistik om olika dokumenttyper kommer här
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Analys-trender</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Graf över analyser över tid kommer här
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Placeholder sections removed - will be added when data is available */}
           </TabsContent>
         </Tabs>
       </div>
