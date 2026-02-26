@@ -19,6 +19,7 @@ import AnalysisWorkspace from "./pages/AnalysisWorkspace";
 import Presentation from "./pages/Presentation";
 import DocumentEvidence from "./pages/DocumentEvidence";
 import NotFound from "./pages/NotFound";
+import SharedReport from "./pages/SharedReport";
 
 const queryClient = new QueryClient();
 
@@ -105,6 +106,8 @@ const App = () => {
               path="/settings"
               element={session ? <Settings /> : <Navigate to="/" />}
             />
+            {/* Public shared report route - no auth required */}
+            <Route path="/shared/:token" element={<SharedReport />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

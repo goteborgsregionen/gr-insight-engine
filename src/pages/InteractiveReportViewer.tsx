@@ -5,13 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, Loader2, ShieldCheck, FileText } from "lucide-react";
+import { ArrowLeft, Download, Loader2, ShieldCheck, FileText, Printer } from "lucide-react";
 import { ExecutiveSummaryCard } from "@/components/reports/ExecutiveSummaryCard";
 import { InteractiveTOC } from "@/components/reports/InteractiveTOC";
 import { EvidenceBadge, type EvidencePost } from "@/components/reports/EvidenceBadge";
 import { EvidencePopover } from "@/components/reports/EvidencePopover";
 import { SourceReferences } from "@/components/reports/SourceReferences";
 import { ConfidenceBadge } from "@/components/reports/ConfidenceBadge";
+import { GapAnalysisProgress } from "@/components/reports/GapAnalysisProgress";
+import { TrendChart } from "@/components/reports/TrendChart";
+import { ShareReportDialog } from "@/components/reports/ShareReportDialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ReactMarkdown from "react-markdown";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -285,16 +288,28 @@ export default function InteractiveReportViewer() {
               <ArrowLeft className="h-4 w-4" />
               Tillbaka till rapporter
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => downloadMutation.mutate()}
-              disabled={downloadMutation.isPending}
-              className="gap-2"
-            >
-              {downloadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Ladda ner HTML
-            </Button>
+            <div className="flex gap-2">
+              <ShareReportDialog sessionId={reportId!} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadMutation.mutate()}
+                disabled={downloadMutation.isPending}
+                className="gap-2"
+              >
+                {downloadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                HTML
+              </Button>
+            </div>
           </div>
 
           {/* Executive Summary */}
@@ -323,9 +338,23 @@ export default function InteractiveReportViewer() {
               />
             </div>
 
-            {/* Sidebar: TOC + Evidence summary */}
+            {/* Sidebar: TOC + Trend Chart + Gap Progress + Evidence summary */}
             <div className="space-y-4">
               <InteractiveTOC content={fullMarkdown} />
+
+              {/* Trend Chart */}
+              {result?.temporal_years && (
+                <TrendChart
+                  temporalYears={result.temporal_years}
+                  claimsPosts={claimsPosts as any[]}
+                  kpiConflictsCount={result.kpi_conflicts_count}
+                />
+              )}
+
+              {/* Gap Analysis Progress */}
+              {result?.gap_analysis && (
+                <GapAnalysisProgress gapAnalysisMarkdown={result.gap_analysis} />
+              )}
 
               {/* Evidence summary card */}
               {(evidencePosts.length > 0 || claimsPosts.length > 0) && (
@@ -350,6 +379,19 @@ export default function InteractiveReportViewer() {
                       </div>
                     </div>
                   </div>
+                  {/* Confidence stats */}
+                  {result?.claim_confidence_stats && (
+                    <div className="text-xs border-t pt-2 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Snitt konfidens</span>
+                        <span className="font-medium">{Math.round(result.claim_confidence_stats.avg_confidence)}/100</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Hög konfidens (≥70)</span>
+                        <span className="font-medium">{result.claim_confidence_stats.high_confidence}</span>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 pt-1 border-t text-xs text-muted-foreground">
                     <ConfidenceBadge sourceCount={evidencePosts.length} />
                     {evidencePosts.length >= 3
@@ -358,6 +400,18 @@ export default function InteractiveReportViewer() {
                       ? "Medel evidensbasering"
                       : "Ingen evidens tillgänglig"}
                   </div>
+                </div>
+              )}
+
+              {/* Benchmarking info */}
+              {result?.benchmarking?.previous_sessions_count > 0 && (
+                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                  <h4 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                    Benchmarking
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    Jämförd mot {result.benchmarking.previous_sessions_count} tidigare {result.benchmarking.previous_sessions_count === 1 ? 'analys' : 'analyser'}
+                  </p>
                 </div>
               )}
             </div>
