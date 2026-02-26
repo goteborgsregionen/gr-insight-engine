@@ -211,9 +211,11 @@ export type Database = {
           assumptions: string[] | null
           claim_id: string
           claim_type: string
+          confidence_score: number | null
           created_at: string | null
           document_id: string | null
           evidence_ids: string[]
+          explanation: string | null
           id: string
           kpi_tags: string[] | null
           notes: string | null
@@ -227,9 +229,11 @@ export type Database = {
           assumptions?: string[] | null
           claim_id: string
           claim_type: string
+          confidence_score?: number | null
           created_at?: string | null
           document_id?: string | null
           evidence_ids?: string[]
+          explanation?: string | null
           id?: string
           kpi_tags?: string[] | null
           notes?: string | null
@@ -243,9 +247,11 @@ export type Database = {
           assumptions?: string[] | null
           claim_id?: string
           claim_type?: string
+          confidence_score?: number | null
           created_at?: string | null
           document_id?: string | null
           evidence_ids?: string[]
+          explanation?: string | null
           id?: string
           kpi_tags?: string[] | null
           notes?: string | null
