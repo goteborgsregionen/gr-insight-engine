@@ -1,101 +1,125 @@
 
-# Sprint 2: Multi-pass analys, modelluppgradering och contradiction detection
+# UI/UX-analys och forbattringsforslag
 
-## Oversikt
-Sprint 2 forbattrar analysernas kvalitet genom fyra andringar:
-1. Uppgradera `reason-claims` och `aggregate-strategic-analysis` till `google/gemini-2.5-pro` for djupare reasoning
-2. Lagga till temperature controls per edge function
-3. Implementera multi-pass analys med self-critique i `aggregate-strategic-analysis`
-4. Lagga till contradiction detection i `reason-claims`
+## Sammanfattning
+Efter en grundlig genomgang av alla sidor (Dashboard, Dokument, Analys, Rapporter, Chat, Installningar) och bade desktop- och mobilvy har jag identifierat foljande forbattringspunkter, grupperade efter prioritet.
 
-## Detaljerade andringar
+---
 
-### 1. `supabase/functions/reason-claims/index.ts` -- Modelluppgradering + contradiction detection + temperature
+## A. Hog prioritet -- Funktionella problem
 
-**Andringar:**
-- Byt modell fran `google/gemini-2.5-flash` till `google/gemini-2.5-pro` (rad 99)
-- Lagg till `temperature: 0.3` (konservativt for fakta-baserad reasoning)
-- Utoka claim-typer med `contradiction` som ny typ
-- Lagg till ett dedikerat steg i prompten som explicit instruerar AI:n att jamfora siffror mellan dokument och flagga motstridiga uppgifter
-- Utoka tool-schemat med `contradicts_claim_id` (optional) for att lank motstridiga claims till varandra
-- Spara contradictions-sammanfattning pa sessionen (i `critique_results` JSON)
+### 1. Brutna lankar pa Dashboard
+"Ladda upp fler"-knappen och Quick Action-korten pekar till `/upload` men den korrekta routen ar `/documents/upload`. Anvandarnas klick leder till 404.
 
-**Ny prompt-sektion (laggs till i REASON_PROMPT):**
-```
-CONTRADICTION DETECTION:
-- Jamfor siffror, procent och artal mellan olika dokument
-- Om samma KPI har olika varden i olika dokument, skapa en "contradiction" claim
-- Ange contradicts_claim_id for att referera till det motstridiga paastaendet
-- Exempel: Om Dokument A sager "budget 50 MSEK" och Dokument B sager "budget 42 MSEK", skapa tva claims som pekar pa varandra
-```
+**Atgard:** Uppdatera alla `Link to="/upload"` till `to="/documents/upload"` i `Dashboard.tsx`.
 
-### 2. `supabase/functions/aggregate-strategic-analysis/index.ts` -- Multi-pass + modell + temperature
+### 2. Redundant menypost "Ladda upp"
+Sidomenyn har bade "Dokument" och "Ladda upp" som separata toppnivaposter. Uppladdning ar en aktion inom dokument-flodet, inte en egen sektion. Det skapar forvirring och tar plats.
 
-**Andringar:**
+**Atgard:** Ta bort "Ladda upp" fran sidebar-navigeringen. Behall CTA-knappen "Ladda upp" pa Dokument-sidan.
 
-**A. Modelluppgradering:**
-- Byt modell fran `google/gemini-2.5-flash` till `google/gemini-2.5-pro` (rad 373)
-- Lagg till `temperature: 0.5` (balanserat for kreativ strategisk analys)
+### 3. AI-chatt ar en tom sida
+Chat-sidan visar bara "kommer snart". En tom sida i navigeringen minskar fortroendet.
 
-**B. Multi-pass self-critique (huvudforbattring):**
-Efter att den forsta analysen genererats (Pass 1), lagg till ett Pass 2 dar AI:n kritiserar sin egen output:
+**Atgard:** Antingen implementera grundlaggande chatt-funktion (edge function finns redan: `analysis-chat`) eller doljd fran navigeringen tills den ar klar.
 
-```text
-Pass 1: Generera analys (som idag, med gemini-2.5-pro)
-         |
-         v
-Pass 2: Self-critique -- ny AI-anrop med prompten:
-         "Granska foljande analys mot dessa kvalitetskriterier:
-          1. Har gap-analysen minst 5 rader med faktiska siffror? (JA/NEJ)
-          2. Har varje rekommendation minst 150 ord? (JA/NEJ)
-          3. Finns minst 10 dokumentreferenser med emoji? (JA/NEJ)
-          4. Ar total langd minst 1500 ord? (JA/NEJ)
-          5. Refererar analysen till evidence-ID:n [E-XXX]? (JA/NEJ)
-          
-          Om nagot kriterium ar NEJ: forbattra analysen och returnera en uppdaterad version.
-          Om alla ar JA: returnera analysen oforandrad."
-         |
-         v
-Anvand forbattrad version om score < threshold
-```
+### 4. Dashboard-statistik visar "hardkodat" varde
+"Genererade rapporter" visar alltid "0" -- det ar hardkodat och hamtar inte faktisk data fran `analysis_sessions`.
 
-**Implementering:**
-- Forsta AI-anropet (Pass 1) ar oforandrat -- producerar `draftAnalysis`
-- Andra AI-anropet (Pass 2) tar `draftAnalysis.full_markdown_output` som input
-- Pass 2 anvander `google/gemini-2.5-flash` (snabbare, billigare for granskning) med `temperature: 0.1`
-- Pass 2 returnerar via tool call: `{ passed: boolean, score: number, issues: string[], improved_markdown: string | null }`
-- Om `passed === false` och `improved_markdown` finns: ersatt `full_markdown_output` med forbattrad version
-- Om Pass 2 misslyckas (timeout, fel): anvand Pass 1 oforandrad (graceful degradation)
-- Logga critique-resultat i `analysis_sessions.critique_results`
+**Atgard:** Hamta count fran `analysis_sessions` med `status = 'completed'`.
 
-**C. Inkludera contradictions fran claims:**
-- Hamta claims med `claim_type = 'contradiction'` separat
-- Lagg till en dedikerad sektion i prompten: "IDENTIFIERADE MOTSAGELSER" med motstridiga varden
-- Instruera AI:n att adressera dessa i gap-analysen
+---
 
-### 3. Temperature-oversikt (alla funktioner)
+## B. Medel prioritet -- Layoutforbattringar
 
-| Edge function | Modell | Temperature | Motivering |
-|---|---|---|---|
-| extract-evidence | gemini-2.5-flash | 0.1 | Fakta-utvinning, minimal kreativitet |
-| reason-claims | gemini-2.5-pro | 0.3 | Kräver reasoning men maste vara precis |
-| critique-pre-write | -- (ej AI) | -- | Programmatisk, ingen AI |
-| aggregate-strategic-analysis Pass 1 | gemini-2.5-pro | 0.5 | Strategisk analys, kreativt tankande |
-| aggregate-strategic-analysis Pass 2 | gemini-2.5-flash | 0.1 | Granskning, strikt bedomning |
-| analyze-document | gemini-2.5-flash | 0.2 (redan satt for text) | Fakta-fokuserat |
+### 5. Dashboard hero-kort pa mobil -- layout bryts
+Pa 390px bredd trycks "Ladda upp fler"-knappen ner och text wrappas ojamnt. Texten "48 analyserade * Senaste aktivitet: fyra manader sedan" ar for lang.
 
-### 4. Inga databasandringar
-Alla andringar ar i edge functions. Befintliga kolumner (`critique_results` jsonb, `claims_posts.claim_type` text) stodjer redan de nya vaerdena.
+**Atgard:** Pa mobil, stacka knappen under texten med `flex-col` pa sma skarmar.
 
-## Filer som andras
+### 6. Rapportkorten saknar tydligt innehall
+Rapportkorten visar "Analys 2025-..." med avklippt titel, "0" vyer, och ingen sammanfattning. Det ar svart att skilja rapporter at.
 
-| Fil | Aktion | Sammanfattning |
-|---|---|---|
-| `supabase/functions/reason-claims/index.ts` | Redigera | Pro-modell, temp 0.3, contradiction detection |
-| `supabase/functions/aggregate-strategic-analysis/index.ts` | Redigera | Pro-modell, temp 0.5, multi-pass self-critique |
-| `supabase/functions/extract-evidence/index.ts` | Redigera | Lagg till temperature: 0.1 (en rad) |
+**Atgard:**
+- Visa hela titeln (eller la-ngre truncation).
+- Visa antal dokument och kort sammanfattning om den finns.
+- Visa ikon for analystyp istallet for bara badge-text.
 
-## Risker och mitigering
-- **Langre exekveringstid**: Multi-pass lagger till ~30-60s extra. Mitigeras genom att anvanda flash for Pass 2 och att hela Pass 2 ar optional (graceful degradation).
-- **Hogre kostnad**: gemini-2.5-pro kostar mer an flash. Mitigeras genom att bara anvanda pro for de tva viktigaste stegen (reason + aggregate) och flash for allt annat.
-- **Pass 2 timeout**: Om Pass 2 tar for lang tid anvands Pass 1 oforandrad -- anvandarupplevelsen forsämras aldrig.
+### 7. Dokumentlistan saknar pagination
+"Visar 37 av 39 dokument" listar alla pa en gang. Vid 100+ dokument blir det ohantbart.
+
+**Atgard:** Lagg till enkel pagination (t.ex. 20 per sida) eller virtual scrolling.
+
+### 8. Rapportvyn (InteractiveReportViewer) -- sidebar dold pa mobil
+Pa mobil syns inte TOC, TrendChart eller GapAnalysis. De hamnar under main content och scrollas forbi.
+
+**Atgard:** Lagg till en "hopfallbar" sidebar/drawer pa mobil, eller visa som accordion overst.
+
+---
+
+## C. Lagre prioritet -- Polish och UX-forbattringar
+
+### 9. Tomma platshallarsektioner pa Dashboard
+Under "Statistik"-tabben finns tva tomma kort ("Dokumenttyper" och "Analys-trender") med texten "kommer har". Visar inkomplett funktionalitet.
+
+**Atgard:** Antingen fyll med riktig data (t.ex. filtyper fran documents, analyser over tid med Recharts) eller dolj tills data finns.
+
+### 10. Sidebar saknar aktiv-indikator i loggan
+Det finns ingen visuell koppling mellan logotypen i header och sidebar-branding. Headern och sidebar har separata visuella identiteter.
+
+**Atgard:** Flytta logotypen till sidebaren (overst) och anvand headern for sak-titel/breadcrumbs istallet.
+
+### 11. Dark mode-stod saknar toggle
+CSS-variabler for dark mode finns definierade, men det finns ingen toggle i UI:t for att byta. Anvandare kan inte aktivera det.
+
+**Atgard:** Lagg till en dark/light mode toggle i Settings eller i headern.
+
+### 12. Wizard-stegen i Analysis ar svara att oversatta visuellt
+Stegindikatorn (1 -> 2 -> 3) forsvinner pa mobil pga utrymmesbrist. Inget progressbar-alternativ.
+
+**Atgard:** Pa sma skarmar, visa bara aktuellt steg med "Steg 1 av 3" text istallet for full horisontell stepper.
+
+---
+
+## D. Tillganglighetsaspekter
+
+### 13. Knappar saknar aria-labels
+Flera knappar (t.ex. ta-bort-knapp med "x" i analyswizarden, nedladdnings-ikoner i dokumentlistan) saknar beskrivande text for skarmlasar.
+
+### 14. Fokusindikatorer
+Tab-navigering genom sidomenyn och rapportkort saknar tydliga fokusringar pa nagra stallen.
+
+---
+
+## Rekommenderad implementeringsordning
+
+| Steg | Punkt | Uppskattad insats |
+|------|-------|------------------|
+| 1 | Fix brutna lankar (#1) | 5 min |
+| 2 | Ta bort redundant "Ladda upp" (#2) | 5 min |
+| 3 | Fix hardkodad statistik (#4) | 10 min |
+| 4 | Dolj/implementera AI-chatt (#3) | 10 min |
+| 5 | Mobil hero-layout (#5) | 15 min |
+| 6 | Forbattra rapportkort (#6) | 30 min |
+| 7 | Mobil sidebar i rapportvy (#8) | 30 min |
+| 8 | Ta bort tomma platshallare (#9) | 15 min |
+| 9 | Dark mode toggle (#11) | 20 min |
+| 10 | Mobil stepper (#12) | 15 min |
+| 11 | Pagination (#7) | 30 min |
+| 12 | Tillganglighet (#13, #14) | 20 min |
+
+---
+
+## Tekniska detaljer
+
+**Filer som paverkas:**
+- `src/pages/Dashboard.tsx` -- fix lankar, statistik, platshallare
+- `src/components/layout/Sidebar.tsx` -- ta bort "Ladda upp"
+- `src/pages/Reports.tsx` / `src/components/reports/ReportCard.tsx` -- forbattra kortvisning
+- `src/pages/InteractiveReportViewer.tsx` -- mobil sidebar
+- `src/pages/Analysis.tsx` -- mobil stepper
+- `src/components/layout/Header.tsx` -- optional dark mode toggle
+- `src/components/documents/DocumentList.tsx` -- pagination
+- `src/pages/Chat.tsx` -- dolj eller implementera
+
+Alla andringar ar frontend-only och kraver inga databasandringar.
