@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, Loader2, ShieldCheck, FileText, Printer } from "lucide-react";
+import { ArrowLeft, Download, Loader2, ShieldCheck, FileText, Printer, PanelRightOpen, PanelRightClose } from "lucide-react";
 import { ExecutiveSummaryCard } from "@/components/reports/ExecutiveSummaryCard";
 import { InteractiveTOC } from "@/components/reports/InteractiveTOC";
 import { EvidenceBadge, type EvidencePost } from "@/components/reports/EvidenceBadge";
@@ -63,6 +63,7 @@ export default function InteractiveReportViewer() {
   const [startTime] = useState(Date.now());
   const [selectedEvidence, setSelectedEvidence] = useState<EvidencePost | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Fetch session
   const { data: session, isLoading } = useQuery({
@@ -289,6 +290,16 @@ export default function InteractiveReportViewer() {
               Tillbaka till rapporter
             </Button>
             <div className="flex gap-2">
+              {/* Mobile sidebar toggle */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden gap-2"
+                aria-label="Visa sidopanel"
+              >
+                {sidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+              </Button>
               <ShareReportDialog sessionId={reportId!} />
               <Button
                 variant="outline"
@@ -339,7 +350,7 @@ export default function InteractiveReportViewer() {
             </div>
 
             {/* Sidebar: TOC + Trend Chart + Gap Progress + Evidence summary */}
-            <div className="space-y-4">
+            <div className={`space-y-4 ${sidebarOpen ? 'block' : 'hidden lg:block'}`}>
               <InteractiveTOC content={fullMarkdown} />
 
               {/* Trend Chart */}

@@ -280,45 +280,56 @@ export default function Analysis() {
           </Card>
         )}
 
-        {/* Wizard Steps */}
+        {/* Wizard Steps - responsive */}
         <div className="flex items-center justify-center gap-4 py-6">
-          <div className={cn(
-            "flex items-center gap-2",
-            step >= 1 && "text-primary font-semibold"
-          )}>
-            <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center border-2",
-              step >= 1 ? "border-primary bg-primary text-primary-foreground" : "border-muted"
-            )}>
-              1
-            </div>
-            <span>Välj dokument</span>
+          {/* Mobile: compact stepper */}
+          <div className="sm:hidden text-center">
+            <p className="text-sm font-medium text-primary">
+              Steg {step} av 3: {step === 1 ? 'Välj dokument' : step === 2 ? 'Välj perspektiv' : 'Analys'}
+            </p>
+            <Progress value={(step / 3) * 100} className="mt-2 h-2" />
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-          <div className={cn(
-            "flex items-center gap-2",
-            step >= 2 && "text-primary font-semibold"
-          )}>
+
+          {/* Desktop: full stepper */}
+          <div className="hidden sm:flex items-center gap-4">
             <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center border-2",
-              step >= 2 ? "border-primary bg-primary text-primary-foreground" : "border-muted"
+              "flex items-center gap-2",
+              step >= 1 && "text-primary font-semibold"
             )}>
-              2
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center border-2",
+                step >= 1 ? "border-primary bg-primary text-primary-foreground" : "border-muted"
+              )}>
+                1
+              </div>
+              <span>Välj dokument</span>
             </div>
-            <span>Välj perspektiv</span>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-          <div className={cn(
-            "flex items-center gap-2",
-            step >= 3 && "text-primary font-semibold"
-          )}>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
             <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center border-2",
-              step >= 3 ? "border-primary bg-primary text-primary-foreground" : "border-muted"
+              "flex items-center gap-2",
+              step >= 2 && "text-primary font-semibold"
             )}>
-              3
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center border-2",
+                step >= 2 ? "border-primary bg-primary text-primary-foreground" : "border-muted"
+              )}>
+                2
+              </div>
+              <span>Välj perspektiv</span>
             </div>
-            <span>Analys</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            <div className={cn(
+              "flex items-center gap-2",
+              step >= 3 && "text-primary font-semibold"
+            )}>
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center border-2",
+                step >= 3 ? "border-primary bg-primary text-primary-foreground" : "border-muted"
+              )}>
+                3
+              </div>
+              <span>Analys</span>
+            </div>
           </div>
         </div>
 

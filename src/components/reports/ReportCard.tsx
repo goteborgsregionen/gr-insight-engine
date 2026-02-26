@@ -50,21 +50,30 @@ export function ReportCard({ session, onDownload, isDownloading }: ReportCardPro
     }
   };
 
+  const getAnalysisIcon = () => {
+    switch (session.analysis_type) {
+      case 'strategic': return '📊';
+      case 'financial': return '💰';
+      case 'gap': return '🔍';
+      default: return '📋';
+    }
+  };
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-xl truncate">{session.title}</CardTitle>
+            <CardTitle className="text-lg leading-snug line-clamp-2">{session.title}</CardTitle>
             <CardDescription className="flex items-center gap-2 mt-2">
-              <Calendar className="h-3 w-3" />
+              <Calendar className="h-3 w-3 shrink-0" />
               Skapad {formatDistanceToNow(new Date(session.created_at), { addSuffix: true, locale: sv })}
             </CardDescription>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-end gap-2 shrink-0">
             {getStatusBadge()}
             <Badge variant="secondary" className="text-xs">
-              {getAnalysisTypeLabel()}
+              {getAnalysisIcon()} {getAnalysisTypeLabel()}
             </Badge>
           </div>
         </div>
@@ -106,6 +115,7 @@ export function ReportCard({ session, onDownload, isDownloading }: ReportCardPro
               size="sm"
               onClick={onDownload}
               disabled={isDownloading || session.status !== 'completed'}
+              aria-label="Ladda ner rapport"
             >
               <Download className="h-4 w-4" />
             </Button>

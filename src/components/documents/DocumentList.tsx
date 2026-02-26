@@ -29,6 +29,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+const ITEMS_PER_PAGE = 20;
+
 export function DocumentList() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -38,6 +40,7 @@ export function DocumentList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
   const [analysisTypeFilter, setAnalysisTypeFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ["documents"],
@@ -92,6 +95,8 @@ export function DocumentList() {
   }, [documents, searchQuery, fileTypeFilter, analysisTypeFilter]);
 
   const documentGroups = filteredDocuments ? groupByDocumentFamily(filteredDocuments) : [];
+  const totalPages = Math.ceil(documentGroups.length / ITEMS_PER_PAGE);
+  const paginatedGroups = documentGroups.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups((prev) => {
@@ -408,12 +413,13 @@ export function DocumentList() {
 
         {/* Results count */}
         <div className="text-sm text-muted-foreground">
-          Visar {documentGroups.length} av {documents?.length || 0} dokument
+          Visar {Math.min(currentPage * ITEMS_PER_PAGE, documentGroups.length)} av {documentGroups.length} dokument
+          {documents && documentGroups.length !== documents.length && ` (filtrerat från ${documents.length})`}
         </div>
 
         {/* Document List */}
         <div className="grid gap-4">
-          {documentGroups.length === 0 && (
+          {paginatedGroups.length === 0 && (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground mb-4" />
@@ -422,7 +428,7 @@ export function DocumentList() {
             </Card>
           )}
           
-          {documentGroups.map((group) => {
+          {paginatedGroups.map((group) => {
           const groupId = group.latestVersion.parent_document_id || group.latestVersion.id;
           const isExpanded = expandedGroups.has(groupId);
           const hasOlderVersions = group.olderVersions.length > 0;
@@ -457,6 +463,31 @@ export function DocumentList() {
           );
         })}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Föregående
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Sida {currentPage} av {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Nästa
+            </Button>
+          </div>
+        )}
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
