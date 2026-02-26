@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
+import { tablesToKpiPoints, detectConflicts } from "../_shared/kpiConflictScanner.ts";
+import type { EvidenceTable, ConflictIssue } from "../_shared/kpiConflictScanner.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,7 +100,98 @@ serve(async (req) => {
       .select('*')
       .in('document_id', session.document_ids);
 
+    // === TEMPORAL TREND ANALYSIS ===
+    // Group evidence by year to detect temporal patterns
+    const yearBuckets = new Map<number, { evidenceIds: string[]; docIds: Set<string>; values: Array<{ label: string; value: number; unit: string }> }>();
+    
+    for (const ep of (evidencePosts || [])) {
+      if (ep.type !== 'table' || !ep.rows) continue;
+      const rows = ep.rows as any[];
+      for (const row of rows) {
+        if (!Array.isArray(row)) continue;
+        for (const cell of row) {
+          const yearMatch = String(cell ?? '').match(/\b(19|20)\d{2}\b/);
+          if (yearMatch) {
+            const year = parseInt(yearMatch[0], 10);
+            if (!yearBuckets.has(year)) {
+              yearBuckets.set(year, { evidenceIds: [], docIds: new Set(), values: [] });
+            }
+            const bucket = yearBuckets.get(year)!;
+            bucket.evidenceIds.push(ep.evidence_id);
+            bucket.docIds.add(ep.document_id);
+            break; // one year per row
+          }
+        }
+      }
+    }
+
+    const temporalSummary = Array.from(yearBuckets.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([year, data]) => `${year}: ${data.evidenceIds.length} datapunkter från ${data.docIds.size} dokument (${[...data.docIds].map(id => documents.find(d => d.id === id)?.title || id).join(', ')})`)
+      .join('\n');
+
+    console.log(`📅 Temporal analysis: ${yearBuckets.size} distinct years found`);
+
+    // === KPI CONFLICT DETECTION (auto-resolution) ===
+    const tableEvidence: EvidenceTable[] = (evidencePosts || [])
+      .filter(e => e.type === 'table' && e.headers && e.rows)
+      .map(e => ({
+        evidenceId: e.evidence_id,
+        docId: e.document_id,
+        page: e.page,
+        table_ref: e.table_ref,
+        headers: (e.headers as string[]) || [],
+        rows: (e.rows as any[]) || [],
+        source_loc: e.source_loc,
+        notes: e.notes
+      }));
+
+    const kpiPoints = tablesToKpiPoints(tableEvidence);
+    const kpiConflicts = detectConflicts(kpiPoints);
+    
+    console.log(`⚠️ KPI conflict scan: ${kpiPoints.length} KPI points, ${kpiConflicts.length} conflicts detected`);
+
+    // Auto-resolution: for each conflict, determine most reliable value
+    const resolvedConflicts = kpiConflicts.map(conflict => {
+      // Resolution strategy: prefer value from document with more evidence, or most recent document
+      const pointsByDoc = new Map<string, typeof conflict.points[0][]>();
+      for (const p of conflict.points) {
+        if (!pointsByDoc.has(p.docId)) pointsByDoc.set(p.docId, []);
+        pointsByDoc.get(p.docId)!.push(p);
+      }
+
+      // Find doc with most evidence overall
+      const docEvidenceCounts = new Map<string, number>();
+      for (const ep of (evidencePosts || [])) {
+        docEvidenceCounts.set(ep.document_id, (docEvidenceCounts.get(ep.document_id) || 0) + 1);
+      }
+
+      let bestDocId = conflict.points[0].docId;
+      let bestCount = 0;
+      for (const [docId] of pointsByDoc) {
+        const count = docEvidenceCounts.get(docId) || 0;
+        if (count > bestCount) {
+          bestCount = count;
+          bestDocId = docId;
+        }
+      }
+
+      const resolvedValue = pointsByDoc.get(bestDocId)?.[0]?.value ?? conflict.points[0].value;
+      const resolvedDoc = documents.find(d => d.id === bestDocId);
+
+      return {
+        ...conflict,
+        resolution: {
+          resolved_value: resolvedValue,
+          resolved_from_doc: resolvedDoc?.title || bestDocId,
+          strategy: 'most_evidence',
+          confidence: bestCount > 5 ? 'high' : 'medium'
+        }
+      };
+    });
+
     console.log(`Found ${individualResults.length} individual analyses for ${documents.length} documents, ${claimsPosts?.length || 0} claims (${contradictionClaims.length} contradictions), ${evidencePosts?.length || 0} evidence posts`);
+
 
     // Prepare the comprehensive prompt for strategic aggregation
     let strategicPromptTemplate = `
@@ -270,6 +363,9 @@ KRITISKA KVALITETSKRAV:
 ✅ Texten ska vara professionell, tvärsektoriell och strategiskt tänkande
 ✅ Totalt minst 1500 ord för hela analysen
 ✅ Använd dokumentens faktiska innehåll, inte generiska formuleringar
+✅ Inkludera temporala trender om tidsdata finns tillgänglig
+✅ Adressera KPI-konflikter och använd resolverade värden
+✅ Inkludera en ## Temporal Trendanalys sektion om data finns för fler än 2 år
 `;
 
     // Build the comprehensive context from all individual analyses
@@ -366,6 +462,27 @@ KRITISKA KVALITETSKRAV:
         }
         analysisContext += `\n`;
       }
+    }
+
+    // Add temporal trend analysis
+    if (temporalSummary) {
+      analysisContext += `\n\n## TEMPORAL TRENDANALYS\n`;
+      analysisContext += `Data har identifierats för följande tidsperioder:\n${temporalSummary}\n`;
+      analysisContext += `\nAnvänd denna tidsdata för att identifiera trender, förändringar över tid och prognoser.\n`;
+    }
+
+    // Add KPI conflict detection with auto-resolution
+    if (resolvedConflicts.length > 0) {
+      analysisContext += `\n\n## KPI-KONFLIKTER (automatiskt detekterade)\n`;
+      analysisContext += `Följande KPI-konflikter har identifierats mellan dokument med automatisk resolution:\n\n`;
+      for (const conflict of resolvedConflicts) {
+        analysisContext += `🔴 **${conflict.label}** (${conflict.unit}, ${conflict.severity}):\n`;
+        analysisContext += `  Värden: ${conflict.points.map(p => `${p.value} (${documents.find(d => d.id === p.docId)?.title || p.docId})`).join(' vs ')}\n`;
+        analysisContext += `  Δ = ${conflict.deltaAbs.toFixed(2)}${conflict.deltaRelPct ? ` (${conflict.deltaRelPct.toFixed(1)}%)` : ''}\n`;
+        analysisContext += `  ✅ Resolution: Använd ${conflict.resolution.resolved_value} från "${conflict.resolution.resolved_from_doc}" (strategi: ${conflict.resolution.strategy}, konfidens: ${conflict.resolution.confidence})\n`;
+        analysisContext += `  ${conflict.message}\n\n`;
+      }
+      analysisContext += `Adressera dessa konflikter i gap-analysen och använd de resolverade värdena som primära referenspunkter.\n`;
     }
 
     // Add custom prompt if provided
@@ -650,6 +767,21 @@ ${aggregatedAnalysis.full_markdown_output}`
       })),
       critique_pass2: critiqueResult,
       contradictions_count: contradictionClaims.length,
+      temporal_years: Array.from(yearBuckets.keys()).sort(),
+      temporal_year_count: yearBuckets.size,
+      kpi_conflicts: resolvedConflicts.map(c => ({
+        label: c.label,
+        unit: c.unit,
+        severity: c.severity,
+        deltaAbs: c.deltaAbs,
+        deltaRelPct: c.deltaRelPct,
+        points: c.points.map(p => ({
+          value: p.value,
+          doc: documents.find(d => d.id === p.docId)?.title || p.docId
+        })),
+        resolution: c.resolution
+      })),
+      kpi_conflicts_count: resolvedConflicts.length,
       completed_at: new Date().toISOString()
     };
 
@@ -665,7 +797,10 @@ ${aggregatedAnalysis.full_markdown_output}`
           pass2_passed: critiqueResult.passed,
           pass2_issues: critiqueResult.issues,
           pass2_used_improved: critiqueResult.used_improved,
-          contradictions_count: contradictionClaims.length
+          contradictions_count: contradictionClaims.length,
+          kpi_conflicts_count: resolvedConflicts.length,
+          kpi_conflicts: resolvedConflicts.map(c => ({ label: c.label, severity: c.severity, resolution: c.resolution })),
+          temporal_years: Array.from(yearBuckets.keys()).sort()
         },
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

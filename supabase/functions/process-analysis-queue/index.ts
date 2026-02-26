@@ -6,9 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 10;        // Increased for parallel throughput
 const MAX_ATTEMPTS = 3;
-const STEP_TIMEOUT = 300000; // 300 seconds per step
+const STEP_TIMEOUT = 300000;  // 300 seconds per step
+const PARALLEL_CONCURRENCY = 5; // Max concurrent document pipelines
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -227,31 +228,37 @@ serve(async (req) => {
 
     console.log(`Processing ${queueItems.length} queue items...`);
 
-    // --- Per-document pipeline (parallel across documents) ---
-    const docResults = await Promise.allSettled(
-      queueItems.map(async (item: any) => {
-        try {
-          return await processDocument(supabase, item);
-        } catch (error) {
-          console.error(`Queue item ${item.id} failed:`, error);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          const newAttempts = item.attempts + 1;
-          const newStatus = newAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+    // --- Per-document pipeline (parallel with concurrency limit) ---
+    const docResults: PromiseSettledResult<any>[] = [];
+    for (let i = 0; i < queueItems.length; i += PARALLEL_CONCURRENCY) {
+      const batch = queueItems.slice(i, i + PARALLEL_CONCURRENCY);
+      console.log(`Processing batch ${Math.floor(i / PARALLEL_CONCURRENCY) + 1}: ${batch.length} documents in parallel`);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (item: any) => {
+          try {
+            return await processDocument(supabase, item);
+          } catch (error) {
+            console.error(`Queue item ${item.id} failed:`, error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const newAttempts = item.attempts + 1;
+            const newStatus = newAttempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
 
-          await supabase
-            .from('analysis_queue')
-            .update({
-              status: newStatus,
-              attempts: newAttempts,
-              error_message: errorMessage,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', item.id);
+            await supabase
+              .from('analysis_queue')
+              .update({
+                status: newStatus,
+                attempts: newAttempts,
+                error_message: errorMessage,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', item.id);
 
-          return { success: false, id: item.id, document_id: item.document_id, error: errorMessage };
-        }
-      }),
-    );
+            return { success: false, id: item.id, document_id: item.document_id, error: errorMessage };
+          }
+        }),
+      );
+      docResults.push(...batchResults);
+    }
 
     const successful = docResults.filter(
       (r) => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.success,
