@@ -183,21 +183,21 @@ serve(async (req) => {
 
     console.log(`Analysis session created: ${session.id} (status: processing)`);
 
-    // Add documents to analysis queue
-    console.log(`Adding ${documentIds.length} documents to analysis queue...`);
-    for (const docId of documentIds) {
-      const { error: queueError } = await supabase
-        .from('analysis_queue')
-        .insert({
-          user_id: user.id,
-          document_id: docId,
-          status: 'pending',
-          priority: 10,
-        });
+    // Add documents to analysis queue (batch insert for parallel processing)
+    console.log(`Adding ${documentIds.length} documents to analysis queue (batch)...`);
+    const queueItems = documentIds.map((docId: string) => ({
+      user_id: user.id,
+      document_id: docId,
+      status: 'pending',
+      priority: 10,
+    }));
 
-      if (queueError) {
-        console.error('Error adding to queue:', queueError);
-      }
+    const { error: queueError } = await supabase
+      .from('analysis_queue')
+      .insert(queueItems);
+
+    if (queueError) {
+      console.error('Error adding to queue:', queueError);
     }
 
     // Trigger process-analysis-queue in background
