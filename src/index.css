@@ -115,3 +115,21 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Print-friendly styles for PDF export */
+@media print {
+  nav, header, [data-sidebar], button, .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .prose {
+    max-width: 100% !important;
+  }
+  @page {
+    margin: 2cm;
+    size: A4;
+  }
+}
