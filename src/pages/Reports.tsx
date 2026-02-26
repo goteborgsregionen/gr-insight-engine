@@ -6,18 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { ReportCard } from "@/components/reports/ReportCard";
+import { ReportListItem } from "@/components/reports/ReportListItem";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Filter, FileText } from "lucide-react";
+import { Search, Filter, FileText, LayoutGrid, List } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const ITEMS_PER_PAGE = 20;
 
 export default function Reports() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Fetch all completed analysis sessions
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['report-sessions'],
     queryFn: async () => {
@@ -25,19 +31,16 @@ export default function Reports() {
         .from('analysis_sessions')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       return data;
     },
   });
 
-  // Download report mutation
   const downloadMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       const { data, error } = await supabase.functions.invoke('generate-report', {
         body: { sessionId, format: 'html' },
       });
-
       if (error) throw error;
       return data;
     },
@@ -51,42 +54,42 @@ export default function Reports() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
-      toast({
-        title: "Rapport nedladdad",
-        description: "Rapporten har laddats ner som HTML-fil",
-      });
+      toast({ title: "Rapport nedladdad", description: "Rapporten har laddats ner som HTML-fil" });
     },
     onError: (error: any) => {
-      toast({
-        title: "Fel",
-        description: error.message || "Kunde inte ladda ner rapporten",
-        variant: "destructive",
-      });
+      toast({ title: "Fel", description: error.message || "Kunde inte ladda ner rapporten", variant: "destructive" });
     },
   });
 
-  // Filter sessions
   const filteredSessions = sessions?.filter((session) => {
     const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
     const matchesType = typeFilter === 'all' || session.analysis_type === typeFilter;
-
     return matchesSearch && matchesStatus && matchesType;
   });
+
+  const totalPages = Math.max(1, Math.ceil((filteredSessions?.length || 0) / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedSessions = filteredSessions?.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  );
+
+  // Reset page when filters change
+  const handleFilterChange = (setter: (v: string) => void) => (v: string) => {
+    setter(v);
+    setCurrentPage(1);
+  };
 
   return (
     <MainLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold mb-2">Rapporter</h1>
-          <p className="text-muted-foreground">
-            Utforska och hantera dina analysrapporter
-          </p>
+          <p className="text-muted-foreground">Utforska och hantera dina analysrapporter</p>
         </div>
 
-        {/* Search and filters */}
+        {/* Filters + View toggle */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row gap-4">
@@ -95,13 +98,13 @@ export default function Reports() {
                 <Input
                   placeholder="Sök rapporter..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                   className="pl-9"
                 />
               </div>
-              
-              <div className="flex gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+
+              <div className="flex gap-2 items-center">
+                <Select value={statusFilter} onValueChange={handleFilterChange(setStatusFilter)}>
                   <SelectTrigger className="w-[150px]">
                     <Filter className="h-4 w-4 mr-2" />
                     <SelectValue placeholder="Status" />
@@ -114,8 +117,8 @@ export default function Reports() {
                   </SelectContent>
                 </Select>
 
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[180px]">
+                <Select value={typeFilter} onValueChange={handleFilterChange(setTypeFilter)}>
+                  <SelectTrigger className="w-[160px]">
                     <FileText className="h-4 w-4 mr-2" />
                     <SelectValue placeholder="Analystyp" />
                   </SelectTrigger>
@@ -127,33 +130,110 @@ export default function Reports() {
                     <SelectItem value="standard">Standard</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <div className="flex border border-border rounded-md">
+                  <Button
+                    variant={viewMode === "grid" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("grid")}
+                    aria-label="Gridvy"
+                    className="rounded-r-none"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("list")}
+                    aria-label="Listvy"
+                    className="rounded-l-none"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Report list */}
+        {/* Content */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i}>
-                <CardContent className="pt-6">
-                  <Skeleton className="h-32 w-full" />
-                </CardContent>
+              <Card key={i}><CardContent className="pt-6"><Skeleton className="h-32 w-full" /></CardContent></Card>
+            ))}
+          </div>
+        ) : paginatedSessions && paginatedSessions.length > 0 ? (
+          <>
+            {viewMode === "grid" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {paginatedSessions.map((session) => (
+                  <ReportCard
+                    key={session.id}
+                    session={session}
+                    onDownload={() => downloadMutation.mutate(session.id)}
+                    isDownloading={downloadMutation.isPending}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Titel</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Dok</TableHead>
+                      <TableHead>Skapad</TableHead>
+                      <TableHead className="text-right">Åtgärder</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedSessions.map((session) => (
+                      <ReportListItem
+                        key={session.id}
+                        session={session}
+                        onDownload={() => downloadMutation.mutate(session.id)}
+                        isDownloading={downloadMutation.isPending}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
               </Card>
-            ))}
-          </div>
-        ) : filteredSessions && filteredSessions.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSessions.map((session) => (
-              <ReportCard
-                key={session.id}
-                session={session}
-                onDownload={() => downloadMutation.mutate(session.id)}
-                isDownloading={downloadMutation.isPending}
-              />
-            ))}
-          </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className={safePage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        isActive={page === safePage}
+                        onClick={() => setCurrentPage(page)}
+                        className="cursor-pointer"
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      className={safePage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
+          </>
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
@@ -165,15 +245,7 @@ export default function Reports() {
                   : "Skapa din första analysrapport genom att analysera dokument"}
               </p>
               {(searchQuery || statusFilter !== 'all' || typeFilter !== 'all') && (
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setStatusFilter("all");
-                    setTypeFilter("all");
-                  }}
-                >
+                <Button variant="outline" className="mt-4" onClick={() => { setSearchQuery(""); setStatusFilter("all"); setTypeFilter("all"); }}>
                   Rensa filter
                 </Button>
               )}
