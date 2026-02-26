@@ -94,6 +94,44 @@ serve(async (req) => {
     // Fetch contradiction claims separately for dedicated prompt section
     const contradictionClaims = (claimsPosts || []).filter(c => c.claim_type === 'contradiction');
 
+    // === BENCHMARKING: Fetch previous completed sessions for comparison ===
+    const { data: previousSessions } = await supabase
+      .from('analysis_sessions')
+      .select('id, title, completed_at, analysis_result, claims_count, critique_passed, critique_results')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .neq('id', sessionId)
+      .order('completed_at', { ascending: false })
+      .limit(5);
+
+    let benchmarkContext = '';
+    if (previousSessions && previousSessions.length > 0) {
+      benchmarkContext = '\n\n## BENCHMARKING MOT TIDIGARE ANALYSER\n';
+      benchmarkContext += `Det finns ${previousSessions.length} tidigare avslutade analyser att jämföra mot:\n\n`;
+      for (const prev of previousSessions) {
+        const result = prev.analysis_result as any;
+        benchmarkContext += `### ${prev.title} (${prev.completed_at?.split('T')[0] || 'okänt datum'})\n`;
+        benchmarkContext += `- Claims: ${prev.claims_count || 0}\n`;
+        benchmarkContext += `- Critique passed: ${prev.critique_passed ? 'Ja' : 'Nej'}\n`;
+        if (result?.strategic_overview) {
+          // Include abbreviated overview for comparison
+          const overview = String(result.strategic_overview).slice(0, 300);
+          benchmarkContext += `- Översikt: ${overview}...\n`;
+        }
+        if (result?.kpi_conflicts_count != null) {
+          benchmarkContext += `- KPI-konflikter: ${result.kpi_conflicts_count}\n`;
+        }
+        if (result?.common_focus_areas && Array.isArray(result.common_focus_areas)) {
+          const areas = result.common_focus_areas.map((a: any) => a.area || a).slice(0, 5);
+          benchmarkContext += `- Fokusområden: ${areas.join(', ')}\n`;
+        }
+        benchmarkContext += '\n';
+      }
+      benchmarkContext += `Identifiera signifikanta förändringar jämfört med tidigare analyser. Beskriv vad som har förändrats, nya trender, och om tidigare gap har adresserats.\n`;
+    }
+
+    console.log(`📊 Benchmarking: ${previousSessions?.length || 0} previous sessions found`);
+
     // Fetch evidence for all documents in this session
     const { data: evidencePosts } = await supabase
       .from('evidence_posts')
@@ -395,8 +433,15 @@ KRITISKA KVALITETSKRAV:
       analysisContext += `\n\n## STRUKTURERADE PÅSTÅENDEN (CLAIMS)\n`;
       analysisContext += `Dessa påståenden är baserade på verifierad evidens:\n\n`;
       for (const claim of claimsPosts) {
-        analysisContext += `**${claim.claim_id}** (${claim.claim_type}, styrka: ${claim.strength}):\n`;
+        analysisContext += `**${claim.claim_id}** (${claim.claim_type}, styrka: ${claim.strength}`;
+        if ((claim as any).confidence_score != null) {
+          analysisContext += `, konfidens: ${(claim as any).confidence_score}/100`;
+        }
+        analysisContext += `):\n`;
         analysisContext += `${claim.text}\n`;
+        if ((claim as any).explanation) {
+          analysisContext += `💡 Förklaring: ${(claim as any).explanation}\n`;
+        }
         analysisContext += `📊 Evidens: ${claim.evidence_ids?.join(', ') || 'Ingen evidens angiven'}\n`;
         if (claim.assumptions && claim.assumptions.length > 0) {
           analysisContext += `⚠️ Antaganden: ${claim.assumptions.join('; ')}\n`;
@@ -483,6 +528,11 @@ KRITISKA KVALITETSKRAV:
         analysisContext += `  ${conflict.message}\n\n`;
       }
       analysisContext += `Adressera dessa konflikter i gap-analysen och använd de resolverade värdena som primära referenspunkter.\n`;
+    }
+
+    // Add benchmarking context from previous analyses
+    if (benchmarkContext) {
+      analysisContext += benchmarkContext;
     }
 
     // Add custom prompt if provided
@@ -782,6 +832,22 @@ ${aggregatedAnalysis.full_markdown_output}`
         resolution: c.resolution
       })),
       kpi_conflicts_count: resolvedConflicts.length,
+      benchmarking: {
+        previous_sessions_count: previousSessions?.length || 0,
+        previous_sessions: (previousSessions || []).map(s => ({
+          id: s.id,
+          title: s.title,
+          completed_at: s.completed_at,
+          claims_count: s.claims_count,
+          critique_passed: s.critique_passed
+        }))
+      },
+      claim_confidence_stats: {
+        total_claims: (claimsPosts || []).length,
+        avg_confidence: (claimsPosts || []).reduce((sum, c) => sum + ((c as any).confidence_score || 0), 0) / Math.max((claimsPosts || []).length, 1),
+        high_confidence: (claimsPosts || []).filter(c => ((c as any).confidence_score || 0) >= 70).length,
+        low_confidence: (claimsPosts || []).filter(c => ((c as any).confidence_score || 0) < 50 && ((c as any).confidence_score || 0) > 0).length,
+      },
       completed_at: new Date().toISOString()
     };
 

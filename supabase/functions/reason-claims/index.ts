@@ -23,6 +23,8 @@ CLAIM FORMAT:
   "text": "IT-budgeten ökade med 12.5% mellan 2023-2024",
   "evidence_ids": ["E-001", "E-023"],
   "strength": "high|medium|low",
+  "confidence_score": 85,
+  "explanation": "Baserat på tabelldata från två oberoende dokument som visar konsistenta budgetsiffror...",
   "assumptions": ["Förutsätter att budgeten är inflationsjusterad"],
   "actors": ["IT-avdelningen"],
   "kpi_tags": ["budget", "IT"],
@@ -34,6 +36,20 @@ STRENGTH RULES:
 - "medium": 1 stark källa (tabell med fullständig data)
 - "low": Härledd från svag evidens eller antaganden
 
+CONFIDENCE SCORE (0-100):
+- 90-100: Direkt verifierbart faktum från primärkälla (officiell statistik, årsredovisning)
+- 70-89: Starkt stöd från multipla evidensposter, men kräver viss tolkning
+- 50-69: Rimlig slutsats baserad på tillgänglig data, men begränsat underlag
+- 30-49: Spekulativt eller baserat på indirekta indikatorer
+- 0-29: Svag evidens, antaganden dominerar
+
+EXPLANATION (obligatoriskt för varje claim):
+- Beskriv steg-för-steg hur du nådde slutsatsen
+- Referera till specifika evidens-ID:n (E-XXX) och vad de visar
+- Om flera evidensposter: förklara hur de stödjer varandra
+- Om antaganden gjordes: förklara varför de är rimliga
+- Max 2-3 meningar, koncist men informativt
+
 CROSS-DOCUMENT FOCUS:
 - Identifiera TRENDER över tid/dokument
 - Upptäck MOTSÄGELSER mellan källor
@@ -43,13 +59,14 @@ CONTRADICTION DETECTION:
 - Jämför siffror, procent och årtal mellan olika dokument
 - Om samma KPI har olika värden i olika dokument, skapa en "contradiction" claim
 - Ange contradicts_claim_id för att referera till det motstridiga påståendet
-- Exempel: Om Dokument A säger "budget 50 MSEK" och Dokument B säger "budget 42 MSEK", skapa två claims som pekar på varandra
 - Contradictions ska alltid ha strength "high" om båda källorna är tabeller/siffror, annars "medium"
 - I claim-texten: beskriv BÅDA värdena och vilka dokument de kommer från
 
 IMPORTANT:
 - Använd save_claims tool för att spara alla claims
 - Inkludera evidence_ids[] för varje claim
+- Inkludera confidence_score (0-100) för varje claim
+- Inkludera explanation för varje claim
 - Flagga konflikter som "contradiction" med contradicts_claim_id
 - Flagga datagap som "gap" med low strength`;
 
@@ -132,6 +149,8 @@ serve(async (req) => {
                       text: { type: 'string' },
                       evidence_ids: { type: 'array', items: { type: 'string' } },
                       strength: { type: 'string', enum: ['high', 'medium', 'low'] },
+                      confidence_score: { type: 'integer', minimum: 0, maximum: 100, description: 'Confidence score 0-100 based on evidence quality and coverage' },
+                      explanation: { type: 'string', description: 'Step-by-step reasoning explaining how the claim was derived from evidence' },
                       assumptions: { type: 'array', items: { type: 'string' } },
                       actors: { type: 'array', items: { type: 'string' } },
                       kpi_tags: { type: 'array', items: { type: 'string' } },
@@ -173,6 +192,8 @@ serve(async (req) => {
       text: c.text,
       evidence_ids: c.evidence_ids,
       strength: c.strength,
+      confidence_score: c.confidence_score ?? null,
+      explanation: c.explanation ?? null,
       assumptions: c.assumptions || [],
       actors: c.actors || [],
       kpi_tags: c.kpi_tags || [],
