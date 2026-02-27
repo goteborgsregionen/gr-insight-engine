@@ -356,7 +356,7 @@ VIKTIGT - För PDF-dokument, fokusera på:
 Returnera strukturerad JSON:
 
 {
-  "summary": "Detaljerad sammanfattning som inkluderar all viktig data från tabeller och diagram (max 300 ord)",
+  "summary": "ANALYTISK sammanfattning (minst 300 ord). KRAV: (1) Specifika siffror med sidhänvisning, (2) Kritisk bedömning — inte bara beskrivning, (3) Jämförelse med föregående period, (4) Identifiera risker/svagheter, (5) Konkreta slutsatser. Aldrig generiska fraser som 'stark prestation' utan att ange exakt data.",
   "document_metadata": {
     "document_type": "typ av dokument (t.ex. IT-strategi, budget, policy)",
     "has_tables": true/false,
