@@ -481,11 +481,11 @@ Returnera strukturerad JSON:
 
     // Call Lovable AI - different request format for PDFs vs text files
     const requestBody = isPDF ? {
-      model: 'google/gemini-2.5-flash',
+      model: 'google/gemini-2.5-pro',
       messages: [
         {
           role: 'system',
-          content: 'Du är en expertanalysassistent för dokument. Du kan läsa PDF-filer direkt och extrahera all information inklusive tabeller, diagram och layout. Analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown.'
+          content: 'Du är en senior policyanalytiker med expertis i offentlig förvaltning, kommunalekonomi och strategisk analys. Du kan läsa PDF-filer direkt och extrahera all information inklusive tabeller, diagram och layout. Din analys ska vara KRITISK, KVANTITATIV och HANDLINGSBAR — aldrig generisk eller beskrivande. Varje påstående ska förankras i specifika siffror från dokumentet.'
         },
         {
           role: 'user',
