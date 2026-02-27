@@ -515,11 +515,11 @@ Returnera strukturerad JSON:
               properties: {
                 markdown_output: { 
                   type: "string",
-                  description: "Complete markdown formatted analysis"
+                  description: "Fullständig analytisk rapport i markdown (minst 500 ord). KRAV: (1) Specifika siffror med källa, t.ex. 'intäkter ökade med 12% till 450 MSEK (s.15)', (2) Kritisk bedömning: vad är starkt, vad är oroande, vad saknas?, (3) Jämförelse med föregående år där data finns, (4) Trender och mönster, (5) Risker och möjligheter, (6) Konkreta rekommendationer. ALDRIG generiska fraser som 'stark finansiell prestation' utan att ange exakta siffror."
                 },
                 summary: { 
                   type: "string",
-                  description: "Brief summary of the document"
+                  description: "Analytisk sammanfattning (minst 300 ord) med specifika siffror, trender och kritisk bedömning. Inte en beskrivning utan en ANALYS. Undvik generiska fraser — varje mening ska innehålla konkret data eller en specifik slutsats."
                 },
                 keywords: {
                   type: "array",
