@@ -11,7 +11,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { ReportCard } from "@/components/reports/ReportCard";
 import { ReportListItem } from "@/components/reports/ReportListItem";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Filter, FileText, LayoutGrid, List } from "lucide-react";
+import { Search, Filter, FileText, LayoutGrid, List, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ITEMS_PER_PAGE = 20;
