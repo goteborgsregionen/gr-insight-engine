@@ -568,11 +568,11 @@ Returnera strukturerad JSON:
               properties: {
                 markdown_output: { 
                   type: "string",
-                  description: "Complete markdown formatted analysis"
+                  description: "Fullständig analytisk rapport i markdown (minst 400 ord) med specifika siffror, kritisk bedömning, trender och rekommendationer."
                 },
                 summary: { 
                   type: "string",
-                  description: "Brief summary of the document"
+                  description: "Analytisk sammanfattning (minst 200 ord) med specifika siffror och kritisk bedömning. Inte en beskrivning utan en ANALYS."
                 },
                 keywords: {
                   type: "array",
