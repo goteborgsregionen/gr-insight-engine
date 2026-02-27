@@ -11,7 +11,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { ReportCard } from "@/components/reports/ReportCard";
 import { ReportListItem } from "@/components/reports/ReportListItem";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Filter, FileText, LayoutGrid, List } from "lucide-react";
+import { Search, Filter, FileText, LayoutGrid, List, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const ITEMS_PER_PAGE = 20;
@@ -23,6 +23,23 @@ export default function Reports() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortKey, setSortKey] = useState<"title" | "status" | "created_at">("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "created_at" ? "desc" : "asc");
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ col }: { col: typeof sortKey }) => {
+    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['report-sessions'],
@@ -61,12 +78,19 @@ export default function Reports() {
     },
   });
 
-  const filteredSessions = sessions?.filter((session) => {
-    const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
-    const matchesType = typeFilter === 'all' || session.analysis_type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const filteredSessions = sessions
+    ?.filter((session) => {
+      const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
+      const matchesType = typeFilter === 'all' || session.analysis_type === typeFilter;
+      return matchesSearch && matchesStatus && matchesType;
+    })
+    ?.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "title") return dir * a.title.localeCompare(b.title, "sv");
+      if (sortKey === "status") return dir * a.status.localeCompare(b.status, "sv");
+      return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    });
 
   const totalPages = Math.max(1, Math.ceil((filteredSessions?.length || 0) / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
@@ -181,11 +205,17 @@ export default function Reports() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Titel</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("title")}>
+                        <span className="inline-flex items-center">Titel<SortIcon col="title" /></span>
+                      </TableHead>
                       <TableHead>Typ</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
+                        <span className="inline-flex items-center">Status<SortIcon col="status" /></span>
+                      </TableHead>
                       <TableHead className="text-center">Dok</TableHead>
-                      <TableHead>Skapad</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
+                        <span className="inline-flex items-center">Skapad<SortIcon col="created_at" /></span>
+                      </TableHead>
                       <TableHead className="text-right">Åtgärder</TableHead>
                     </TableRow>
                   </TableHeader>
