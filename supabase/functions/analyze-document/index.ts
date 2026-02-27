@@ -549,7 +549,7 @@ Returnera strukturerad JSON:
       messages: [
         {
           role: 'system',
-          content: 'Du är en expertanalysassistent för dokument. Du ska analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown. JSON för metadata, Markdown för formaterad presentation.'
+          content: 'Du är en senior analytiker. Analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown. Varje påstående ska förankras i specifika siffror och data från dokumentet. Var KRITISK — identifiera styrkor, svagheter, risker och möjligheter.'
         },
         {
           role: 'user',
