@@ -356,7 +356,7 @@ VIKTIGT - För PDF-dokument, fokusera på:
 Returnera strukturerad JSON:
 
 {
-  "summary": "Detaljerad sammanfattning som inkluderar all viktig data från tabeller och diagram (max 300 ord)",
+  "summary": "ANALYTISK sammanfattning (minst 300 ord). KRAV: (1) Specifika siffror med sidhänvisning, (2) Kritisk bedömning — inte bara beskrivning, (3) Jämförelse med föregående period, (4) Identifiera risker/svagheter, (5) Konkreta slutsatser. Aldrig generiska fraser som 'stark prestation' utan att ange exakt data.",
   "document_metadata": {
     "document_type": "typ av dokument (t.ex. IT-strategi, budget, policy)",
     "has_tables": true/false,
@@ -441,7 +441,7 @@ ${fileContent.substring(0, 100000)}
 Returnera strukturerad JSON:
 
 {
-  "summary": "Koncis sammanfattning (max 200 ord)",
+  "summary": "Analytisk sammanfattning (minst 300 ord) med specifika siffror, kritisk bedömning och konkreta slutsatser",
   "document_metadata": {
     "document_type": "typ",
     "time_period": "period",
@@ -477,15 +477,15 @@ Returnera strukturerad JSON:
   }
 }`;
 
-    console.log('Sending request to Lovable AI (gemini-2.5-flash)...');
+    console.log(`Sending request to Lovable AI (${isPDF ? 'gemini-2.5-pro' : 'gemini-2.5-flash'})...`);
 
     // Call Lovable AI - different request format for PDFs vs text files
     const requestBody = isPDF ? {
-      model: 'google/gemini-2.5-flash',
+      model: 'google/gemini-2.5-pro',
       messages: [
         {
           role: 'system',
-          content: 'Du är en expertanalysassistent för dokument. Du kan läsa PDF-filer direkt och extrahera all information inklusive tabeller, diagram och layout. Analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown.'
+          content: 'Du är en senior policyanalytiker med expertis i offentlig förvaltning, kommunalekonomi och strategisk analys. Du kan läsa PDF-filer direkt och extrahera all information inklusive tabeller, diagram och layout. Din analys ska vara KRITISK, KVANTITATIV och HANDLINGSBAR — aldrig generisk eller beskrivande. Varje påstående ska förankras i specifika siffror från dokumentet.'
         },
         {
           role: 'user',
@@ -515,11 +515,11 @@ Returnera strukturerad JSON:
               properties: {
                 markdown_output: { 
                   type: "string",
-                  description: "Complete markdown formatted analysis"
+                  description: "Fullständig analytisk rapport i markdown (minst 500 ord). KRAV: (1) Specifika siffror med källa, t.ex. 'intäkter ökade med 12% till 450 MSEK (s.15)', (2) Kritisk bedömning: vad är starkt, vad är oroande, vad saknas?, (3) Jämförelse med föregående år där data finns, (4) Trender och mönster, (5) Risker och möjligheter, (6) Konkreta rekommendationer. ALDRIG generiska fraser som 'stark finansiell prestation' utan att ange exakta siffror."
                 },
                 summary: { 
                   type: "string",
-                  description: "Brief summary of the document"
+                  description: "Analytisk sammanfattning (minst 300 ord) med specifika siffror, trender och kritisk bedömning. Inte en beskrivning utan en ANALYS. Undvik generiska fraser — varje mening ska innehålla konkret data eller en specifik slutsats."
                 },
                 keywords: {
                   type: "array",
@@ -549,7 +549,7 @@ Returnera strukturerad JSON:
       messages: [
         {
           role: 'system',
-          content: 'Du är en expertanalysassistent för dokument. Du ska analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown. JSON för metadata, Markdown för formaterad presentation.'
+          content: 'Du är en senior analytiker. Analysera enligt givna instruktioner och returnera output i BÅDE JSON och Markdown. Varje påstående ska förankras i specifika siffror och data från dokumentet. Var KRITISK — identifiera styrkor, svagheter, risker och möjligheter.'
         },
         {
           role: 'user',
@@ -568,11 +568,11 @@ Returnera strukturerad JSON:
               properties: {
                 markdown_output: { 
                   type: "string",
-                  description: "Complete markdown formatted analysis"
+                  description: "Fullständig analytisk rapport i markdown (minst 400 ord) med specifika siffror, kritisk bedömning, trender och rekommendationer."
                 },
                 summary: { 
                   type: "string",
-                  description: "Brief summary of the document"
+                  description: "Analytisk sammanfattning (minst 200 ord) med specifika siffror och kritisk bedömning. Inte en beskrivning utan en ANALYS."
                 },
                 keywords: {
                   type: "array",
