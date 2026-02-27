@@ -205,11 +205,17 @@ export default function Reports() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Titel</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("title")}>
+                        <span className="inline-flex items-center">Titel<SortIcon col="title" /></span>
+                      </TableHead>
                       <TableHead>Typ</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
+                        <span className="inline-flex items-center">Status<SortIcon col="status" /></span>
+                      </TableHead>
                       <TableHead className="text-center">Dok</TableHead>
-                      <TableHead>Skapad</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("created_at")}>
+                        <span className="inline-flex items-center">Skapad<SortIcon col="created_at" /></span>
+                      </TableHead>
                       <TableHead className="text-right">Åtgärder</TableHead>
                     </TableRow>
                   </TableHeader>
