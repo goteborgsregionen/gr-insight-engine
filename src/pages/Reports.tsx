@@ -78,12 +78,19 @@ export default function Reports() {
     },
   });
 
-  const filteredSessions = sessions?.filter((session) => {
-    const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
-    const matchesType = typeFilter === 'all' || session.analysis_type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const filteredSessions = sessions
+    ?.filter((session) => {
+      const matchesSearch = session.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
+      const matchesType = typeFilter === 'all' || session.analysis_type === typeFilter;
+      return matchesSearch && matchesStatus && matchesType;
+    })
+    ?.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "title") return dir * a.title.localeCompare(b.title, "sv");
+      if (sortKey === "status") return dir * a.status.localeCompare(b.status, "sv");
+      return dir * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    });
 
   const totalPages = Math.max(1, Math.ceil((filteredSessions?.length || 0) / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
