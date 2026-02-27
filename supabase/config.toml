@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.aggregate-strategic-analysis]
 verify_jwt = true
+
+[functions.deep-analyze-single]
+verify_jwt = true

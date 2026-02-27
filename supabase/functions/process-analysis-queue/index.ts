@@ -182,6 +182,23 @@ async function runSessionPipeline(supabase: any, session: any, completedDocIds: 
         completed_at: new Date().toISOString(),
       })
       .eq('id', sessionId);
+
+    // Step 6: Deep analysis for single-document sessions
+    if (completedDocIds.length <= 2) {
+      try {
+        console.log(`[session:${sessionId}] Step 6: deep-analyze-single`);
+        const { error: deepErr } = await invokeWithTimeout(supabase, 'deep-analyze-single', {
+          sessionId,
+        });
+        if (deepErr) {
+          console.warn(`[session:${sessionId}] deep-analyze-single failed (non-fatal):`, deepErr);
+        } else {
+          console.log(`[session:${sessionId}] Deep analysis complete`);
+        }
+      } catch (err) {
+        console.warn(`[session:${sessionId}] deep-analyze-single error (non-fatal):`, err);
+      }
+    }
   }
 }
 

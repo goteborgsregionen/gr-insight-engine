@@ -7,7 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ChatGPT:s system prompt - Evidence-First foundation
 const SYSTEM_BASE = `ROLE: Du är en policyanalytiker som arbetar evidence-first.
 PRIMARY OBJECTIVE: Leverera beslutbara slutsatser ENDAST från citerad evidens (sidnr/tabell).
 STYLE: Professionell, tvärsektoriell; skriv på svenska; undvik generiska fraser.
@@ -17,7 +16,6 @@ GUARDRAILS:
 - Inga meningar utan evidens i WRITE-pass.
 OUTPUT CONTRACT: Följ EXAKT de givna JSON/Markdown-strukturerna.`;
 
-// ChatGPT:s extract prompt - Extrahera verifierbar evidens
 const EXTRACT_PROMPT = `TASK: EXTRACT — Extrahera verifierbar evidens från dokument.
 FOCUS: Tabeller, nyckeltal, citat, aktörer, tidsperiod, mål, åtgärder.
 
@@ -38,9 +36,9 @@ EVIDENCE FORMAT (JSON array, ett objekt per evidens):
 
 RULES:
 - Bevara siffror och enheter exakt (MSEK, %, mdr, t, kWh).
-- **NYTT**: Normalisera decimalseparator till punkt internt (12,5% → 12.5%), men behåll originalsträngen i notes.
-- **NYTT**: För figurer/diagram, inkludera caption och axlar/mått i notes.
-- **NYTT**: Om möjligt, lägg till cirka-koordinater (x1,y1,x2,y2) för klickbar källa i UI (valfritt).
+- Normalisera decimalseparator till punkt internt (12,5% → 12.5%), men behåll originalsträngen i notes.
+- För figurer/diagram, inkludera caption och axlar/mått i notes.
+- Om möjligt, lägg till cirka-koordinater (x1,y1,x2,y2) för klickbar källa i UI (valfritt).
 - Citat max 40 ord, ordagrant, med page/source_loc.
 - Ingen tolkning, inga slutsatser.
 - Om tabell > 20 rader: ta första 10 + sista 10 och markera om hur många rader som utelämnas.
@@ -52,28 +50,30 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Clone body before reading so error handler can't hit "Body already consumed"
+  const bodyText = await req.text();
+  let documentId: string | undefined;
+
   try {
-    const startTime = Date.now(); // Track start time for metrics
-    const { documentId } = await req.json();
+    const startTime = Date.now();
+    const parsed = JSON.parse(bodyText);
+    documentId = parsed.documentId;
 
     if (!documentId) {
       throw new Error('documentId is required');
     }
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     console.log('📄 Starting evidence extraction for document:', documentId);
 
-    // Update document status
     await supabase
       .from('documents')
       .update({ status: 'extracting_evidence' })
       .eq('id', documentId);
 
-    // Fetch document details
     const { data: document, error: docError } = await supabase
       .from('documents')
       .select('*')
@@ -84,7 +84,6 @@ serve(async (req) => {
       throw new Error(`Document not found: ${docError?.message}`);
     }
 
-    // Download file from storage
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('documents')
       .download(document.file_path);
@@ -93,18 +92,18 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError?.message}`);
     }
 
-    // Convert to base64 for AI
     const arrayBuffer = await fileData.arrayBuffer();
-    const base64Content = btoa(
-      new Uint8Array(arrayBuffer).reduce(
-        (data, byte) => data + String.fromCharCode(byte),
-        ''
-      )
-    );
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binaryString = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      binaryString += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    const base64Content = btoa(binaryString);
 
     console.log('📤 Sending to Lovable AI for extraction...');
 
-    // Call Lovable AI with tool calling
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
       throw new Error('LOVABLE_API_KEY not configured');
@@ -117,7 +116,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // Bäst för PDF/tabeller
+        model: 'google/gemini-2.5-flash',
         temperature: 0.1,
         messages: [
           { role: 'system', content: SYSTEM_BASE },
@@ -125,12 +124,12 @@ serve(async (req) => {
             role: 'user',
             content: [
               { type: 'text', text: EXTRACT_PROMPT },
-          {
-            type: 'image_url',
-            image_url: {
-              url: `data:application/pdf;base64,${base64Content}`
-            }
-          }
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${base64Content}`
+                }
+              }
             ]
           }
         ],
@@ -180,41 +179,67 @@ serve(async (req) => {
     const aiData = await aiResponse.json();
     console.log('✅ AI extraction completed');
 
-    // Parse tool call response
-    const toolCall = aiData.choices[0].message.tool_calls?.[0];
-    if (!toolCall) {
-      throw new Error('No tool call in AI response');
+    // Robust parsing: handle tool_calls or fallback to content
+    let evidencePosts: any[] = [];
+
+    if (aiData.choices?.[0]?.message?.tool_calls?.[0]) {
+      const toolCall = aiData.choices[0].message.tool_calls[0];
+      evidencePosts = JSON.parse(toolCall.function.arguments).evidence_posts;
+      console.log(`📊 Parsed ${evidencePosts.length} evidence via tool_calls`);
+    } else if (aiData.choices?.[0]?.message?.content) {
+      // Fallback: parse JSON from content text
+      const content = aiData.choices[0].message.content;
+      console.log('⚠️ No tool_calls found, trying content fallback');
+      try {
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          evidencePosts = JSON.parse(jsonMatch[0]);
+        } else {
+          const objMatch = content.match(/\{[\s\S]*"evidence_posts"[\s\S]*\}/);
+          if (objMatch) {
+            evidencePosts = JSON.parse(objMatch[0]).evidence_posts || [];
+          }
+        }
+        console.log(`📊 Parsed ${evidencePosts.length} evidence via content fallback`);
+      } catch (parseErr) {
+        console.error('Failed to parse content fallback:', parseErr);
+        console.error('Content preview:', content.substring(0, 500));
+      }
+    } else {
+      console.error('❌ Unexpected AI response structure:', JSON.stringify(aiData).substring(0, 1000));
+      throw new Error('AI response missing both tool_calls and content');
     }
 
-    const evidencePosts = JSON.parse(toolCall.function.arguments).evidence_posts;
-    console.log(`📊 Extracted ${evidencePosts.length} evidence posts`);
+    if (evidencePosts.length === 0) {
+      console.warn('⚠️ No evidence posts extracted');
+    }
 
     // Save to database
-    const evidenceRecords = evidencePosts.map((evidence: any) => ({
-      document_id: documentId,
-      evidence_id: evidence.id,
-      type: evidence.type,
-      page: evidence.page,
-      section: evidence.section,
-      table_ref: evidence.table_ref,
-      headers: evidence.headers,
-      rows: evidence.rows,
-      quote: evidence.quote,
-      unit_notes: evidence.unit_notes,
-      notes: evidence.notes,
-      source_loc: evidence.source_loc
-    }));
+    if (evidencePosts.length > 0) {
+      const evidenceRecords = evidencePosts.map((evidence: any) => ({
+        document_id: documentId,
+        evidence_id: evidence.id,
+        type: evidence.type,
+        page: evidence.page,
+        section: evidence.section,
+        table_ref: evidence.table_ref,
+        headers: evidence.headers,
+        rows: evidence.rows,
+        quote: evidence.quote,
+        unit_notes: evidence.unit_notes,
+        notes: evidence.notes,
+        source_loc: evidence.source_loc
+      }));
 
-    const { data: savedEvidence, error: saveError } = await supabase
-      .from('evidence_posts')
-      .insert(evidenceRecords)
-      .select();
+      const { error: saveError } = await supabase
+        .from('evidence_posts')
+        .insert(evidenceRecords);
 
-    if (saveError) {
-      throw new Error(`Failed to save evidence: ${saveError.message}`);
+      if (saveError) {
+        throw new Error(`Failed to save evidence: ${saveError.message}`);
+      }
     }
 
-    // Update document
     await supabase
       .from('documents')
       .update({
@@ -227,11 +252,10 @@ serve(async (req) => {
 
     console.log('✅ Evidence extraction completed successfully');
 
-    // Log extraction metrics
     const endTime = Date.now();
     const durationMs = endTime - startTime;
-    
-    const { error: metricsError } = await supabase
+
+    await supabase
       .from('extraction_metrics')
       .insert({
         document_id: documentId,
@@ -242,10 +266,6 @@ serve(async (req) => {
         created_at: new Date().toISOString()
       });
 
-    if (metricsError) {
-      console.error('Failed to log metrics:', metricsError);
-    }
-
     console.log(`📊 Metrics: ${durationMs}ms, ${evidencePosts.length} evidence, ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`);
 
     return new Response(
@@ -253,11 +273,7 @@ serve(async (req) => {
         success: true,
         documentId,
         evidenceCount: evidencePosts.length,
-        evidence: savedEvidence,
-        metrics: {
-          durationMs,
-          fileSizeBytes: arrayBuffer.byteLength
-        }
+        metrics: { durationMs, fileSizeBytes: arrayBuffer.byteLength }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -265,21 +281,18 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Evidence extraction error:', error);
     
-    // Try to update document status to error
-    try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
-      const { documentId } = await req.json();
-      if (documentId) {
+    if (documentId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
         await supabase
           .from('documents')
           .update({ status: 'extraction_failed' })
           .eq('id', documentId);
+      } catch (e) {
+        console.error('Failed to update error status:', e);
       }
-    } catch (e) {
-      console.error('Failed to update error status:', e);
     }
 
     return new Response(

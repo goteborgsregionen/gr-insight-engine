@@ -477,7 +477,7 @@ Returnera strukturerad JSON:
   }
 }`;
 
-    console.log('Sending request to Lovable AI (gemini-2.5-flash)...');
+    console.log(`Sending request to Lovable AI (${isPDF ? 'gemini-2.5-pro' : 'gemini-2.5-flash'})...`);
 
     // Call Lovable AI - different request format for PDFs vs text files
     const requestBody = isPDF ? {
