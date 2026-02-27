@@ -441,7 +441,7 @@ ${fileContent.substring(0, 100000)}
 Returnera strukturerad JSON:
 
 {
-  "summary": "Koncis sammanfattning (max 200 ord)",
+  "summary": "Analytisk sammanfattning (minst 300 ord) med specifika siffror, kritisk bedömning och konkreta slutsatser",
   "document_metadata": {
     "document_type": "typ",
     "time_period": "period",
