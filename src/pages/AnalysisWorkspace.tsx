@@ -748,41 +748,304 @@ export default function AnalysisWorkspace() {
 
               {/* Standard details for non-strategic */}
               {(!result?.type || result?.type !== 'strategic_aggregation') && (
-                <>
-                  {result.similarities && result.similarities.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Likheter</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {result.similarities.map((item: string, idx: number) => (
-                        <li key={idx} className="text-sm text-muted-foreground">
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
+                <div className="space-y-4">
+                  {/* Re-run analysis button */}
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          // Invalidate cached analysis results
+                          for (const docId of session.document_ids) {
+                            await supabase
+                              .from('analysis_results')
+                              .update({ is_valid: false } as any)
+                              .eq('document_id', docId);
+                          }
+                          // Reset session
+                          await supabase
+                            .from('analysis_sessions')
+                            .update({ status: 'processing', analysis_result: {} })
+                            .eq('id', sessionId);
+                          // Re-trigger pipeline
+                          await supabase.functions.invoke('process-analysis-queue');
+                          queryClient.invalidateQueries({ queryKey: ['analysis-session', sessionId] });
+                          queryClient.invalidateQueries({ queryKey: ['analysis-results', session.document_ids] });
+                          toast({ title: "Analys startas om", description: "Analysen körs om med senaste inställningarna" });
+                        } catch (e: any) {
+                          toast({ title: "Fel", description: e.message, variant: "destructive" });
+                        }
+                      }}
+                      className="gap-2"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Kör om analys
+                    </Button>
+                  </div>
 
-              {result.differences && result.differences.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Skillnader</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {result.differences.map((item: string, idx: number) => (
-                        <li key={idx} className="text-sm text-muted-foreground">
-                          • {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-                </>
+                  {/* Evidence section */}
+                  {evidenceData && evidenceData.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Table2 className="h-5 w-5" />
+                          Extraherad Evidens
+                        </CardTitle>
+                        <CardDescription>{evidenceData.length} evidensposter från dokumenten</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {evidenceData.map((ev: any) => (
+                          <div key={ev.id} className="p-3 border rounded-lg bg-muted/30 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">{ev.evidence_id}</Badge>
+                              <Badge variant="secondary" className="text-xs">{ev.type}</Badge>
+                              <span className="text-xs text-muted-foreground">s. {ev.page}</span>
+                              {ev.section && <span className="text-xs text-muted-foreground">· {ev.section}</span>}
+                            </div>
+                            {ev.quote && (
+                              <p className="text-sm italic text-muted-foreground flex items-start gap-1">
+                                <Quote className="h-3 w-3 mt-1 shrink-0" />
+                                {ev.quote}
+                              </p>
+                            )}
+                            {ev.table_ref && (
+                              <p className="text-xs text-muted-foreground">{ev.table_ref}</p>
+                            )}
+                            {ev.headers && Array.isArray(ev.headers) && (
+                              <div className="overflow-x-auto">
+                                <table className="text-xs border-collapse w-full">
+                                  <thead>
+                                    <tr>
+                                      {(ev.headers as string[]).map((h: string, i: number) => (
+                                        <th key={i} className="border px-2 py-1 bg-muted text-left font-medium">{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {ev.rows && Array.isArray(ev.rows) && (ev.rows as string[][]).slice(0, 5).map((row: string[], ri: number) => (
+                                      <tr key={ri}>
+                                        {Array.isArray(row) && row.map((cell: string, ci: number) => (
+                                          <td key={ci} className="border px-2 py-1">{cell}</td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                {ev.rows && Array.isArray(ev.rows) && (ev.rows as string[][]).length > 5 && (
+                                  <p className="text-xs text-muted-foreground mt-1">... och {(ev.rows as string[][]).length - 5} fler rader</p>
+                                )}
+                              </div>
+                            )}
+                            {ev.notes && <p className="text-xs text-muted-foreground">{ev.notes}</p>}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Claims section */}
+                  {claimsData && claimsData.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Target className="h-5 w-5" />
+                          Analytiska Påståenden
+                        </CardTitle>
+                        <CardDescription>{claimsData.length} verifierade påståenden</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {claimsData.map((claim: any) => (
+                          <div key={claim.id} className="p-3 border rounded-lg space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="text-xs">{claim.claim_id}</Badge>
+                              <Badge variant="secondary" className="text-xs">{claim.claim_type}</Badge>
+                              <Badge 
+                                variant={claim.strength === 'strong' ? 'default' : 'outline'} 
+                                className="text-xs"
+                              >
+                                {claim.strength}
+                              </Badge>
+                              {claim.confidence_score && (
+                                <span className="text-xs text-muted-foreground">{Math.round(Number(claim.confidence_score) * 100)}% säkerhet</span>
+                              )}
+                            </div>
+                            <p className="text-sm">{claim.text}</p>
+                            {claim.explanation && (
+                              <p className="text-xs text-muted-foreground">{claim.explanation}</p>
+                            )}
+                            {claim.evidence_ids && claim.evidence_ids.length > 0 && (
+                              <div className="flex gap-1 flex-wrap">
+                                {claim.evidence_ids.map((eid: string, i: number) => (
+                                  <Badge key={i} variant="outline" className="text-xs bg-primary/5">{eid}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* KPIs & Business Intelligence from individual results */}
+                  {individualResults && individualResults.length > 0 && (() => {
+                    const allKpis = individualResults.flatMap((r: any) => 
+                      (r.extracted_data as any)?.business_intelligence?.economic_kpis || []
+                    );
+                    const allRisks = individualResults.flatMap((r: any) => 
+                      (r.extracted_data as any)?.business_intelligence?.risks || []
+                    );
+                    const allGoals = individualResults.flatMap((r: any) => 
+                      (r.extracted_data as any)?.business_intelligence?.goals || []
+                    );
+                    if (allKpis.length === 0 && allRisks.length === 0 && allGoals.length === 0) return null;
+                    return (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5" />
+                            Nyckeltal & Affärsintelligens
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {allKpis.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                                <Hash className="h-4 w-4" /> Ekonomiska Nyckeltal
+                              </h4>
+                              <div className="grid gap-2">
+                                {allKpis.map((kpi: any, i: number) => (
+                                  <div key={i} className="flex items-center justify-between p-2 border rounded bg-muted/30">
+                                    <span className="text-sm font-medium">{kpi.metric}</span>
+                                    <div className="text-right">
+                                      <span className="text-sm font-semibold">{kpi.value}</span>
+                                      {kpi.context && <p className="text-xs text-muted-foreground">{kpi.context}</p>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {allGoals.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2">Mål</h4>
+                              <ul className="space-y-1">
+                                {allGoals.map((g: string, i: number) => (
+                                  <li key={i} className="text-sm text-muted-foreground">• {typeof g === 'string' ? g : JSON.stringify(g)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {allRisks.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                                <ShieldAlert className="h-4 w-4" /> Risker
+                              </h4>
+                              <ul className="space-y-1">
+                                {allRisks.map((r: string, i: number) => (
+                                  <li key={i} className="text-sm text-muted-foreground">• {typeof r === 'string' ? r : JSON.stringify(r)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* Themes from individual results */}
+                  {individualResults && individualResults.length > 0 && (() => {
+                    const allThemes = individualResults.flatMap((r: any) => 
+                      (r.extracted_data as any)?.themes?.main_themes || []
+                    );
+                    const allStrengths = individualResults.flatMap((r: any) => 
+                      (r.extracted_data as any)?.themes?.strengths || []
+                    );
+                    const allChallenges = individualResults.flatMap((r: any) => 
+                      (r.extracted_data as any)?.themes?.challenges || []
+                    );
+                    if (allThemes.length === 0 && allStrengths.length === 0 && allChallenges.length === 0) return null;
+                    return (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Tag className="h-5 w-5" />
+                            Teman & Insikter
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {allThemes.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2">Huvudteman</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {allThemes.map((t: string, i: number) => (
+                                  <Badge key={i} variant="secondary">{typeof t === 'string' ? t : JSON.stringify(t)}</Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {allStrengths.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2 text-green-600">Styrkor</h4>
+                              <ul className="space-y-1">
+                                {allStrengths.map((s: string, i: number) => (
+                                  <li key={i} className="text-sm text-muted-foreground">✓ {typeof s === 'string' ? s : JSON.stringify(s)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {allChallenges.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2 text-amber-600">Utmaningar</h4>
+                              <ul className="space-y-1">
+                                {allChallenges.map((c: string, i: number) => (
+                                  <li key={i} className="text-sm text-muted-foreground">⚠ {typeof c === 'string' ? c : JSON.stringify(c)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* Fallback: old similarities/differences if they exist */}
+                  {result?.similarities && result.similarities.length > 0 && (
+                    <Card>
+                      <CardHeader><CardTitle>Likheter</CardTitle></CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2">
+                          {result.similarities.map((item: string, idx: number) => (
+                            <li key={idx} className="text-sm text-muted-foreground">• {item}</li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {result?.differences && result.differences.length > 0 && (
+                    <Card>
+                      <CardHeader><CardTitle>Skillnader</CardTitle></CardHeader>
+                      <CardContent>
+                        <ul className="space-y-2">
+                          {result.differences.map((item: string, idx: number) => (
+                            <li key={idx} className="text-sm text-muted-foreground">• {item}</li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Empty state */}
+                  {(!evidenceData || evidenceData.length === 0) && 
+                   (!claimsData || claimsData.length === 0) && 
+                   (!result?.similarities || result.similarities.length === 0) && (
+                    <Card>
+                      <CardContent className="py-12 text-center">
+                        <p className="text-muted-foreground">Inga detaljer tillgängliga ännu. Kör om analysen för att generera evidens och påståenden.</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               )}
             </TabsContent>
 
