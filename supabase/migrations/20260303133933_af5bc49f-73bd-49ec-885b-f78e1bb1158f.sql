@@ -1,0 +1,2 @@
+ALTER TABLE public.claims_posts DROP CONSTRAINT IF EXISTS claims_posts_claim_type_check;
+ALTER TABLE public.claims_posts ADD CONSTRAINT claims_posts_claim_type_check CHECK (claim_type IN ('trend', 'gap', 'risk', 'goal', 'action', 'kpi', 'recommendation', 'insight', 'contradiction'));

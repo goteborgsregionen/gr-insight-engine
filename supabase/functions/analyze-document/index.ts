@@ -127,6 +127,9 @@ serve(async (req) => {
       console.log(`Text file detected. Content length: ${fileContent.length}, Hash: ${contentHash}`);
     }
 
+    // Version tag — bump this whenever prompts are significantly updated
+    const ANALYSIS_VERSION = 'v2';
+
     // Check if we already have a valid analysis for this content
     const { data: existingAnalysis } = await supabase
       .from('analysis_results')
@@ -135,8 +138,9 @@ serve(async (req) => {
       .eq('is_valid', true)
       .maybeSingle();
 
-    if (existingAnalysis && document.content_hash === contentHash) {
-      console.log('Using cached analysis');
+    const cachedVersion = (existingAnalysis?.analysis_focus as any)?.analysis_version;
+    if (existingAnalysis && document.content_hash === contentHash && cachedVersion === ANALYSIS_VERSION) {
+      console.log('Using cached analysis (same version)');
       await supabase
         .from('documents')
         .update({ status: 'analyzed' })
@@ -149,6 +153,15 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Invalidate old analysis if version changed or content changed
+    if (existingAnalysis) {
+      console.log(`Invalidating old analysis (cached version: ${cachedVersion}, current: ${ANALYSIS_VERSION})`);
+      await supabase
+        .from('analysis_results')
+        .update({ is_valid: false })
+        .eq('document_id', documentId);
     }
 
     // Invalidate old analyses if content changed
@@ -708,7 +721,8 @@ Returnera strukturerad JSON:
         analysis_focus: {
           type: analysis_type,
           custom: analysis_type === 'custom',
-          focus_areas: getFocusAreas(analysis_type)
+          focus_areas: getFocusAreas(analysis_type),
+          analysis_version: ANALYSIS_VERSION
         }
       })
       .select()

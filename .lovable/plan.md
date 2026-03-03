@@ -1,40 +1,58 @@
 
 
-# Fix: Analys genererar inget användbart resultat
+# Rapporter-sidan: Redesign + Listvy
 
-## Problemanalys
+## Problem (synligt i skarmbilden)
+- Titlar klipps av ("Analys 2025-...")  och saknar meningsfull info
+- Datum wrappas over 4 rader ("Skapad fem manader sedan")
+- Korten har ojamn hojd och inkonsekvent layout
+- Ingen mojlighet att vaxla till listvy for battre oversikt vid manga rapporter
+- "0" visas for claims utan forklaring
 
-Från loggarna ser jag tre samverkande buggar:
+---
 
-### 1. Cachad gammal analys
-`analyze-document` loggar "Using cached analysis" — den returnerar den gamla ytliga sammanfattningen istället för att köra med de nya förbättrade prompterna. Trots att vi lade till en "Kör om analys"-knapp har den inte triggats för detta dokument.
+## Losning
 
-### 2. `reason-claims` kraschar med constraint-fel
-Prompten berättar för AI:n att använda claim-typer `trend|gap|recommendation|insight|contradiction`, men databasens check constraint tillåter BARA `trend|gap|risk|goal|action|kpi`. AI:n genererar "recommendation"-claims som avvisas av databasen → 0 claims sparas → Detaljer-fliken visar inga påståenden.
+### 1. Ny vy-vaxlare (Grid / List)
+Lagg till toggle-knappar (Grid-ikon + List-ikon) bredvid filtren. State `viewMode: 'grid' | 'list'`.
 
-### 3. Djupanalysen finns men visas kanske inte korrekt
-`deep-analyze-single` kördes och sparade `full_markdown_output` på sessionen. Datan finns i databasen. Men Sammanfattnings-fliken kanske inte renderar den korrekt beroende på hur `result` byggs.
+### 2. Redesignat ReportCard (grid-vy)
+- **Titel**: Visa hela titeln (ta bort `line-clamp-2`, anvand max 2 rader med `line-clamp-3` istallet)
+- **Datum**: Kompakt format med `format(date, 'd MMM yyyy')` istallet for `formatDistanceToNow` (t.ex. "26 feb 2025" istallet for "fem manader sedan")
+- **Badges**: Statusbadge + typbadge pa en rad, inte stackade vertikalt
+- **Metadata**: En rad: "3 dok | 12 pastaenden | Slutford 26 feb"
+- **Knappar**: Behall men flytta ner med tydligare separator
 
-## Åtgärder
+### 3. Ny ReportListItem-komponent (list-vy)
+En kompakt tabellrad per rapport:
 
-### Steg 1: Fixa claim_type-mismatch i `reason-claims`
-Uppdatera prompten i `supabase/functions/reason-claims/index.ts` så att den BARA använder de claim-typer som databasens constraint tillåter: `trend|gap|risk|goal|action|kpi`. Ta bort `recommendation`, `insight` och `contradiction` från prompten.
+```text
+| Titel (full)         | Typ            | Status   | Dokument | Skapad     | Atgarder      |
+| Analys 2025-08-15... | Strategisk     | Slutford | 3        | 26 feb '25 | [Visa] [DL]   |
+```
 
-### Steg 2: Uppdatera DB-constraint för att vara mer flexibel
-Alternativt (och bättre): utöka check constrainten till att även inkludera `recommendation`, `insight`, `contradiction` — dessa är värdefulla analytiska kategorier. Migration med `ALTER TABLE claims_posts DROP CONSTRAINT ... ADD CONSTRAINT ...`.
+Anvander `Table`-komponenterna som redan finns i projektet.
 
-### Steg 3: Invalidera cache automatiskt vid ny funktionsversion
-I `analyze-document`, lägg till en `analysis_version`-parameter. Om versionen ändras, ignorera cachen. Detta säkerställer att uppgraderade prompter alltid används.
+### 4. Pagination
+Lagg till pagination (20 per sida) langst ner, anvander befintliga `Pagination`-komponenter.
 
-## Plan
+---
 
-Jag rekommenderar **Steg 2** (utöka constrainten) + fixa prompten för att matcha — det ger mest flexibilitet.
+## Tekniska detaljer
 
-### Filer som ändras
+**Filer som andras:**
 
-| Fil | Ändring |
-|-----|---------|
-| `supabase/functions/reason-claims/index.ts` | Synka claim-typer med DB |
-| DB-migration | Utöka `claims_posts_claim_type_check` att inkludera `recommendation`, `insight`, `contradiction` |
-| `supabase/functions/analyze-document/index.ts` | Lägg till versionsbaserad cache-invalidering |
+1. **`src/pages/Reports.tsx`**
+   - Lagg till `viewMode` state och toggle-knappar (`LayoutGrid`, `List` fran lucide)
+   - Rendera antingen grid (`ReportCard`) eller tabell (`ReportListItem`) baserat pa viewMode
+   - Lagg till pagination-logik (20 per sida)
+
+2. **`src/components/reports/ReportCard.tsx`**
+   - Byt `formatDistanceToNow` till `format(date, 'd MMM yyyy', { locale: sv })`
+   - Omstrukturera layouten: badges i en rad, metadata pa en rad, battre spacing
+   - Ta bort emoji-ikoner, anvand Lucide-ikoner for analystyp (BarChart3, DollarSign, Search, ClipboardList)
+
+3. **`src/components/reports/ReportListItem.tsx`** (ny fil)
+   - Kompakt tabellrad med samma data och atgarder
+   - Samma `session`-prop-interface som ReportCard
 
