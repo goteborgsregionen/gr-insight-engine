@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, FileText, Edit2, ArrowLeft, Download, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Send, FileText, Edit2, ArrowLeft, Download, AlertCircle, RefreshCw, RotateCcw, Table2, Quote, Hash, Tag, TrendingUp, ShieldAlert, Target } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { ANALYSIS_TEMPLATES } from "@/lib/analysisTemplates";
