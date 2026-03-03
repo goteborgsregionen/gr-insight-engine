@@ -145,7 +145,7 @@ serve(async (req) => {
                     required: ['claim_id', 'type', 'text', 'evidence_ids', 'strength'],
                     properties: {
                       claim_id: { type: 'string' },
-                      type: { type: 'string', enum: ['trend', 'gap', 'recommendation', 'insight', 'contradiction'] },
+                      type: { type: 'string', enum: ['trend', 'gap', 'risk', 'goal', 'action', 'kpi', 'recommendation', 'insight', 'contradiction'] },
                       text: { type: 'string' },
                       evidence_ids: { type: 'array', items: { type: 'string' } },
                       strength: { type: 'string', enum: ['high', 'medium', 'low'] },
