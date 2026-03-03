@@ -642,14 +642,17 @@ export default function AnalysisWorkspace() {
                     </Card>
                   ))}
                 </>
-              ) : !isProcessing && result.extracted_data?.markdown_output ? (
+              ) : !isProcessing && (result?.full_markdown_output || result?.extracted_data?.markdown_output) ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Analysresultat</CardTitle>
+                    {result?.full_markdown_output && (
+                      <CardDescription>Fördjupad analys</CardDescription>
+                    )}
                   </CardHeader>
                   <CardContent className="prose prose-sm max-w-none dark:prose-invert">
                     <ReactMarkdown>
-                      {result.extracted_data.markdown_output}
+                      {result.full_markdown_output || result.extracted_data.markdown_output}
                     </ReactMarkdown>
                   </CardContent>
                 </Card>
