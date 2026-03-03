@@ -125,9 +125,10 @@ serve(async (req) => {
             content: [
               { type: 'text', text: EXTRACT_PROMPT },
               {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64Content}`
+                type: 'inline_data',
+                inline_data: {
+                  mime_type: 'application/pdf',
+                  data: base64Content
                 }
               }
             ]
