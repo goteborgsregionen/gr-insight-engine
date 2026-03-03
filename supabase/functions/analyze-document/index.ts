@@ -721,7 +721,8 @@ Returnera strukturerad JSON:
         analysis_focus: {
           type: analysis_type,
           custom: analysis_type === 'custom',
-          focus_areas: getFocusAreas(analysis_type)
+          focus_areas: getFocusAreas(analysis_type),
+          analysis_version: ANALYSIS_VERSION
         }
       })
       .select()
