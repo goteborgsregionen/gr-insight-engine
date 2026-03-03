@@ -19,7 +19,7 @@ const REASON_PROMPT = `TASK: REASON — Skapa strukturerade påståenden (claims
 CLAIM FORMAT:
 {
   "claim_id": "C-001",
-  "type": "trend|gap|recommendation|insight|contradiction",
+  "type": "trend|gap|risk|goal|action|kpi|recommendation|insight|contradiction",
   "text": "IT-budgeten ökade med 12.5% mellan 2023-2024",
   "evidence_ids": ["E-001", "E-023"],
   "strength": "high|medium|low",
